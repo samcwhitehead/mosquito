@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add a short description here"
 authors = [{name = "Sam", email = "samcwhitehead@gmail.com"}]
 requires-python = ">= 3.11"
-dependencies = []
+dependencies = ["pyabf"]
 
 [build-system]
 requires = ["setuptools"]
@@ -18,3 +18,19 @@ platforms = ["linux-64"]
 mosquito = { path = ".", editable = true }
 
 [tool.pixi.tasks]
+nb = "jupyter notebook"
+
+[tool.pixi.dependencies]
+matplotlib = ">=3.8.4,<3.9"
+scipy = ">=1.13.0,<1.14"
+pandas = ">=2.2.2,<2.3"
+numpy = ">=1.26.4,<1.27"
+ipykernel = ">=6.29.3,<6.30"
+openpyxl = ">=3.1.2,<3.2"
+cython = ">=3.0.10,<3.1"
+xmltodict = ">=0.13.0,<0.14"
+opencv = ">=4.9.0,<4.10"
+gcc = ">=13.2.0,<13.3"
+scikit-learn = ">=1.4.2,<1.5"
+jupyter = ">=1.0.0,<1.1"
+h5py = ">=3.11.0,<3.12"
