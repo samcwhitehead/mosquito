@@ -47,7 +47,7 @@ EMG_HIGHCUT_POWER = 50  # 2000  # higher cutoff frequency for muscle emg bandpas
 EMG_BTYPE_POWER = 'bandpass'  # butter filter type (bandpass or bandstop)
 EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
 EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
-THRESH_FACTORS_POWER = (1, 20)  # factors multiplied by thresh in spike peak detection
+THRESH_FACTORS_POWER = (3, 25)   # (1, 20)  # factors multiplied by thresh in spike peak detection
 
 # emg filter params - STEERING
 EMG_LOWCUT_STEER = 50
@@ -587,7 +587,7 @@ def estimate_spike_rate(spike_idx, fs, n_pts, viz_flag=False):
     """
     # create gaussian window kernel for convolution
     mean_isi = np.mean(np.diff(spike_idx))  # guess how big we need gaussian to be
-    win_std = int(2**np.round(np.log2(mean_isi)))
+    win_std = int(2**np.ceil(np.log2(mean_isi)))
     win_n_pts = 8*win_std
     gauss_win = signal.windows.gaussian(win_n_pts, win_std)
 
@@ -763,8 +763,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/HighSpeedVideo/Mosquitoes'
-    data_folder = '13_20240426'
-    axo_num_list = [12]  # np.arange(5,14)
+    data_folder = '16_20240506'
+    axo_num_list = [0, 1, 2]  # np.arange(5,14)
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,

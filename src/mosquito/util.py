@@ -68,6 +68,42 @@ def butter_bandpass_filter(data, lowcut, highcut, sampling_period, order=5,
     return y
 
 
+# ------------------------------------------------------------------------------
+def butter_lowpass(lowcut, sampling_period, order=5):
+    import scipy.signal
+    sampling_frequency = 1.0 / sampling_period
+    nyq = 0.5 * sampling_frequency
+    low = lowcut / nyq
+    sos = signal.butter(order, low, btype='low', output='sos')
+    return sos
+
+
+# ------------------------------------------------------------------------------
+def butter_lowpass_filter(data, lowcut, sampling_period, order=5):
+    import scipy.signal
+    sos = butter_lowpass(lowcut, sampling_period, order=order)
+    y = signal.sosfiltfilt(sos, data)
+    return y
+
+
+# ------------------------------------------------------------------------------
+def butter_highpass(highcut, sampling_period, order=5):
+    import scipy.signal
+    sampling_frequency = 1.0 / sampling_period
+    nyq = 0.5 * sampling_frequency
+    high = highcut / nyq
+    sos = signal.butter(order, high, btype='high')
+    return sos
+
+
+# ------------------------------------------------------------------------------
+def butter_highpass_filter(data, highcut, sampling_period, order=5):
+    import scipy.signal
+    sos = butter_highpass(highcut, sampling_period, order=order)
+    y = signal.sosfiltfilt(sos, data)
+    return y
+
+
 # ---------------------------------------------------------------------------------
 def iir_notch(cut_freq, sampling_period, Q=30):
     """
