@@ -1,0 +1,3 @@
+[submodule "external/pySciCam"]
+	path = external/pySciCam
+	url = https://github.com/djorlando24/pySciCam.git

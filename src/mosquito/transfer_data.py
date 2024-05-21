@@ -151,4 +151,3 @@ if __name__ == "__main__":
                 shutil.copy2(vid_src_path, vid_dst_path)
 
     print('=========== \n Done \n ===========')
-    
