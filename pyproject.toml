@@ -19,6 +19,7 @@ mosquito = { path = ".", editable = true }
 
 [tool.pixi.tasks]
 nb = "jupyter notebook"
+postinstall = "pip install -e ./external/pySciCam/ && pixi remove pip"
 
 [tool.pixi.dependencies]
 matplotlib = ">=3.8.4,<3.9"
@@ -34,3 +35,8 @@ scikit-learn = ">=1.4.2,<1.5"
 jupyter = ">=1.0.0,<1.1"
 h5py = ">=3.11.0,<3.12"
 pixi-pycharm = ">=0.0.5,<0.1"
+python-neo = ">=0.13.0,<0.14"
+natsort = ">=8.4.0,<8.5"
+tqdm = ">=4.66.4,<4.67"
+scikit-image = ">=0.20.0,<0.23"
+

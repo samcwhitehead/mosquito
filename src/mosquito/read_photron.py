@@ -64,9 +64,9 @@ def get_vid_filename(root_path=ROOT_PATH, expt_folder=None, sub_folder=None,
 
     # generate path that we'll search for data
     search_path = root_path
-    if not expt_folder is None:
+    if expt_folder is not None:
         search_path = os.path.join(search_path, expt_folder)
-    if not sub_folder is None:
+    if sub_folder is not None:
         search_path = os.path.join(search_path, sub_folder)
     search_path = os.path.join(search_path, file_search_str)
 

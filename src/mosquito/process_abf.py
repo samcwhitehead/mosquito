@@ -47,7 +47,7 @@ EMG_HIGHCUT_POWER = 50  # 2000  # higher cutoff frequency for muscle emg bandpas
 EMG_BTYPE_POWER = 'bandpass'  # butter filter type (bandpass or bandstop)
 EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
 EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
-THRESH_FACTORS_POWER = (3, 25)   # (1, 20)  # factors multiplied by thresh in spike peak detection
+THRESH_FACTORS_POWER = (3.0, 35)   # (1.5, 35)  # factors multiplied by thresh in spike peak detection
 
 # emg filter params - STEERING
 EMG_LOWCUT_STEER = 50
@@ -375,7 +375,7 @@ def filter_emg(emg, fs, wbf_mean, lowcut=EMG_LOWCUT_POWER,
 # ---------------------------------------------------------------------------------
 def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
                   min_spike_dt=MIN_SPIKE_DT, thresh_factors=THRESH_FACTORS_POWER,
-                  rm_spikes_flag=True, abs_flag=False, viz_flag=False):
+                  rm_spikes_flag=False, abs_flag=False, viz_flag=False):
     """
     Detect spikes in EMG data. For now, doing this by setting a threshold
     as a first pass detection method, then extracting windows around spikes
@@ -431,12 +431,16 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
         # get range around current peak
         if (pk - window) < 0 or (pk + window) > n_pts:
             continue
-        spike_ind_init = range(pk - int(window/2), pk + int(window/2))
+        spike_ind_init = range(pk - int(window/4), pk + int(window/4))
 
         # recenter to max value
         pk_new = spike_ind_init[np.argmax(emg[spike_ind_init])]
+        if (pk_new == spike_ind_init[0]) or (pk_new == spike_ind_init[-1]):
+            # if our recentering takes us to the edge of the window, we're probably not on a peak
+            continue
         spike_ind = range(pk_new - window + offset, pk_new + window + offset)
-        if (pk_new - window) < 0 or (pk_new + window) > n_pts:
+        if (spike_ind[0] < 0) or (spike_ind[-1] >= n_pts):
+            # if we're on the edge of the time series, skip
             continue
         spike_waveform = emg[spike_ind]
 
@@ -499,25 +503,31 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
 
 
 # ---------------------------------------------------------------------------------
-def cluster_spikes(spikes, pca_n_comp=20, cluster_num=None):
+def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
+                   cluster_num=None, viz_flag=False):
     """
     Cluster spike waveforms
 
     Args:
         spikes: NxM array containing spike waveforms, where N is number of spikes
             and M is number of time points
+        spike_t: time values for spike window. only used for visualization
+        save_path: where to save clustering results
         pca_n_comp: number of PCA components to take for clustering
         cluster_num: number of clusters to use. if None, try to evaluate optimal
             cluster number using silhouette scores
+        viz_flag: bool, visualize clusters in final clustering?
 
-
-    Returns:
+    Returns: cluster_labels, labels giving cluster ID for each spike
 
     """
     # do PCA on spike waveforms to make clustering less expensive
     pca = PCA(n_components=pca_n_comp)
     pca.fit(spikes)
     pca_result = pca.transform(spikes)
+
+    if spike_t is None:
+        spike_t = np.arange(spikes.shape[1])
 
     # try evaluating cluster numbers?
     if cluster_num is None:
@@ -548,28 +558,52 @@ def cluster_spikes(spikes, pca_n_comp=20, cluster_num=None):
             # plot clustering in waveform space
             colors = cm.tab10(cluster_labels.astype(float) / n_clusters)
             for spike, col in zip(spikes, colors):
-                ax_list[ith].plot(1000 * spikes, spike, color=col, lw=0.35)
+                ax_list[ith].plot(spike_t, spike, color=col, lw=0.35)
 
             ax_list[ith].autoscale(enable=True, axis='x', tight=True)
-            ax_list[ith].set_xlabel('time (ms)', fontsize=20);
-            ax_list[ith].set_ylabel('emg (V)', fontsize=20);
-            ax_list[ith].set_title('clustering for n={}'.format(n_clusters), fontsize=23)
+            # ax_list[ith].set_xlabel('time (ms)', fontsize=20);
+            ax_list[ith].set_ylabel('emg (V)', fontsize=12);
+            ax_list[ith].set_title('clustering for n={}'.format(n_clusters), fontsize=14)
 
         # add final plot for silhouette scores
         ax_list[-1].plot(range_n_clusters, silhouette_avgs)
-        ax_list[-1].set_xlabel('Number of clusters', fontsize=20)
-        ax_list[-1].set_ylabel('Silhouette score', fontsize=20)
+        ax_list[-1].set_xlabel('Number of clusters', fontsize=12)
+        ax_list[-1].set_ylabel('Silhouette score', fontsize=12)
         ax_list[-1].set_title('Silhouette score vs cluster count')
 
+        fig.tight_layout()
         plt.show()
 
         # get cluster number from scores
         cluster_num = range_n_clusters[np.argmax(silhouette_avgs)]
 
         # save cluster evaluation results
-
+        if save_path is not None:
+            fig.savefig(os.path.join(save_path, 'clustering_check.png'))
 
     # do clustering
+    clusterer = KMeans(n_clusters=cluster_num, random_state=47, n_init='auto')
+    cluster_labels = clusterer.fit_predict(pca_result)
+
+    if viz_flag:
+        # make figure
+        fig, ax = plt.subplots()
+
+        # plot clustering in waveform space
+        colors = cm.tab10(cluster_labels.astype(float) / cluster_num)
+        for spike, col in zip(spikes, colors):
+            ax.plot(spike_t, spike, color=col, lw=0.35)
+
+        # label axes
+        ax.autoscale(enable=True, axis='x', tight=True)
+        ax.set_ylabel('emg (V)', fontsize=12);
+
+        # show results
+        plt.show()
+
+    # return results
+    return cluster_labels
+
 
 # ---------------------------------------------------------------------------------
 def estimate_spike_rate(spike_idx, fs, n_pts, viz_flag=False):
@@ -690,7 +724,9 @@ def process_abf(filename, muscle_type, debug_flag=False):
                                                viz_flag=True)  # DEBUG_FLAG
 
     # cluster spikes(?)
-    # TODO: write function and add
+    cluster_labels = cluster_spikes(spikes,
+                                    spike_t=spike_t,
+                                    save_path=os.path.split(abf_path)[0])
 
     # estimate spike rate
     # TODO: incorporate clustered spikes into this
@@ -746,14 +782,31 @@ def save_processed_data(filename, abf_dict, file_type='pkl'):
 
     return None
 
-#
-# # ---------------------------------------------------------------------------------
-# def run_abf_analysis():
-#     """
-#     Function to do full analysis of abf file and save results
-#
-#
-#     """
+
+# ---------------------------------------------------------------------------------
+def load_processed_data(expr_folder, axo_num,
+                        root_path='/media/sam/SamData/Mosquitoes',
+                        subfolder_str='axo_recording_{:02d}'):
+    """
+    Convenience function to LOAD dictionary containing processed abf data
+
+    Args:
+        expr_folder: folder containing processed data (in form XX_YYYYMMDD)
+        axo_num: per-day index of data file
+        root_path: parent folder containing set of experiment folders
+        subfolder_str: format of folder name inside experiment_folder
+
+    Returns: None
+    """
+    # find path to data file, given info
+    data_path = os.path.join(data_root, expr_folder, subfolder_str.format(axo_num))
+    data_filename = [fn for fn in os.listdir(data_path) if fn.endswith('.pkl')][0]
+    data_path_full = os.path.join(data_path, data_filename)
+
+    # load pickled data file
+    data = pickle.load(open(data_path_full, "rb"))
+
+    return data
 
 
 # ---------------------------------------
@@ -762,9 +815,9 @@ def save_processed_data(filename, abf_dict, file_type='pkl'):
 if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
-    data_root = '/media/sam/SamData/HighSpeedVideo/Mosquitoes'
-    data_folder = '16_20240506'
-    axo_num_list = [0, 1, 2]  # np.arange(5,14)
+    data_root = '/media/sam/SamData/Mosquitoes'
+    data_folder = '22_20240516'
+    axo_num_list = np.arange(4, 14)  # np.arange(5,14)
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,
@@ -780,7 +833,7 @@ if __name__ == "__main__":
         log_df = pd.read_excel(log_path)
 
         row_idx = (log_df['Day'] == data_folder) & (log_df['Axo Num'] == axo_num)
-        muscle_type = log_df.loc[row_idx]['Target Muscle'].values[0]
+        muscle_type = log_df.loc[row_idx]['Target Muscle Type'].values[0]
 
         if not muscle_type == 'power':
             muscle_type = 'steer'

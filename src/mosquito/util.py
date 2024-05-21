@@ -92,7 +92,7 @@ def butter_highpass(highcut, sampling_period, order=5):
     sampling_frequency = 1.0 / sampling_period
     nyq = 0.5 * sampling_frequency
     high = highcut / nyq
-    sos = signal.butter(order, high, btype='high')
+    sos = signal.butter(order, high, btype='high', output='sos')
     return sos
 
 
