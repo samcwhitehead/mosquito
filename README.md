@@ -7,9 +7,8 @@ Code used to process ephys recordings and high-speed video. Still in progress.
 This code is currently packaged as a [Pixi](https://pixi.sh/latest/) project. To get it running:
 
 * Install Pixi (follow instructrions [here](https://pixi.sh/latest/))
-* In the terminal or power shell, navigate to the mosquito directory and run the following
-  * `pixi install`
-  * `pixi run postinstall`  (this latter command performs an additional pip install of the external pySciCam repo)
+* In the terminal or power shell, navigate to the mosquito directory and run `pixi install`
+* (Optional) If you want the code to read Photron mraw video files, also run `pixi run postinstall`. But it's easier to just skip this.
 
 After this, you should be ready to run code in the new Pixi project environment. See the [Pixi Python tutorial](https://pixi.sh/latest/tutorials/python/) for extra info.
 
