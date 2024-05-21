@@ -19,6 +19,10 @@ from datetime import date, datetime
 # ---------------------------------------
 # PARAMS
 # ---------------------------------------
+# date for the data we want to transfer right now. if None, ask for input
+# can be in some isoform (e.g. 'YYYY-MM-DD') or date.today()
+DATE = None
+
 # define paths to data
 root_path = '/media/sam/SamData/Mosquitoes/testing'
 vid_path = os.path.join(root_path, 'vid_data')  # folder with high speed video
@@ -77,7 +81,13 @@ def get_next_folder_name(folder_date, out_path=out_path):
 if __name__ == "__main__":
     # ----------------------------------------------
     # set date for current folder
-    folder_date = date.fromisoformat('2024-05-07')   # use folder_date = date.today() if doing folder for same day
+    if DATE is None:
+        date_user = input("Enter date for data to transfer in form YYYY-MM-DD:\n")
+        folder_date = date.fromisoformat(date_user)
+    else:
+        folder_date = date.fromisoformat(DATE)   # use folder_date = date.today() if doing folder for same day
+
+    print('Fetching data for {}'.format(folder_date))
 
     # ----------------------------------------------
     # get next folder name
