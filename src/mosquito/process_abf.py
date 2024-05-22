@@ -13,6 +13,7 @@ TODO:
 # IMPORTS
 # ---------------------------------------
 import os
+import glob
 import pickle
 import pyabf
 import h5py
@@ -22,13 +23,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
+from pathlib import Path
 from scipy import signal
-from util import iir_notch_filter, butter_bandpass_filter
-
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
 
+try:
+    from util import iir_notch_filter, butter_bandpass_filter
+except ModuleNotFoundError:
+    from .util import iir_notch_filter, butter_bandpass_filter
 
 # ---------------------------------------
 # PARAMS
@@ -47,7 +51,7 @@ EMG_HIGHCUT_POWER = 50  # 2000  # higher cutoff frequency for muscle emg bandpas
 EMG_BTYPE_POWER = 'bandpass'  # butter filter type (bandpass or bandstop)
 EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
 EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
-THRESH_FACTORS_POWER = (3.0, 35)   # (1.5, 35)  # factors multiplied by thresh in spike peak detection
+THRESH_FACTORS_POWER = (1.5, 35)   # (1.5, 35)  # factors multiplied by thresh in spike peak detection
 
 # emg filter params - STEERING
 EMG_LOWCUT_STEER = 50
@@ -373,9 +377,24 @@ def filter_emg(emg, fs, wbf_mean, lowcut=EMG_LOWCUT_POWER,
 
 
 # ---------------------------------------------------------------------------------
+def detrend_emg(emg, window=2*EMG_WINDOW_POWER):
+    """
+    Convenience function for detrending a signal using a rolling median
+
+    This might help remove some of the slow drift
+    """
+    df = pd.Series(emg)
+    emg_rolling_median = df.rolling(window=window, center=True).median()
+    emg_detrend = emg - emg_rolling_median
+    emg_detrend[np.isnan(emg_detrend)] = 0
+    return emg_detrend
+
+
+# ---------------------------------------------------------------------------------
 def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
                   min_spike_dt=MIN_SPIKE_DT, thresh_factors=THRESH_FACTORS_POWER,
-                  rm_spikes_flag=False, abs_flag=False, viz_flag=False):
+                  rm_spikes_flag=False, abs_flag=False, viz_flag=False,
+                  detrend_flag=False):
     """
     Detect spikes in EMG data. For now, doing this by setting a threshold
     as a first pass detection method, then extracting windows around spikes
@@ -395,6 +414,7 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
             overshoot
         abs_flag: bool, take absolute value for peak detection?
         viz_flag: bool, visualize spike detection?
+        detrend_flag: try to detrend signal using rolling median?
 
     Returns:
         spikes: array of emg windows around spikes
@@ -406,7 +426,11 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
     mad = np.median(np.abs(emg - np.median(emg)))
 
     # threshold is calculated by finding ~4 sigma level (sd approximated by MAD)
-    thresh = 5*mad/0.6745  # 0.6745 is the factor relating median absolute deviation to sd
+    thresh = 5 * mad / 0.6745  # 0.6745 is the factor relating median absolute deviation to sd
+
+    # Detrend emg signal (exploratory)
+    if detrend_flag:
+        emg = detrend_emg(emg, window=window)
 
     # do first-pass spike location estimate using peak detection
     min_peak_dist = np.round(fs*min_spike_dt)
@@ -786,7 +810,8 @@ def save_processed_data(filename, abf_dict, file_type='pkl'):
 # ---------------------------------------------------------------------------------
 def load_processed_data(expr_folder, axo_num,
                         root_path='/media/sam/SamData/Mosquitoes',
-                        subfolder_str='axo_recording_{:02d}'):
+                        subfolder_str='*_{:04d}',
+                        ext='.pkl'):
     """
     Convenience function to LOAD dictionary containing processed abf data
 
@@ -795,13 +820,19 @@ def load_processed_data(expr_folder, axo_num,
         axo_num: per-day index of data file
         root_path: parent folder containing set of experiment folders
         subfolder_str: format of folder name inside experiment_folder
+        ext: extension for analysis file
 
     Returns: None
     """
     # find path to data file, given info
-    data_path = os.path.join(data_root, expr_folder, subfolder_str.format(axo_num))
-    data_filename = [fn for fn in os.listdir(data_path) if fn.endswith('.pkl')][0]
-    data_path_full = os.path.join(data_path, data_filename)
+    search_path = os.path.join(root_path, expr_folder, subfolder_str.format(axo_num))
+    search_results = glob.glob(os.path.join(search_path, '*{}'.format(ext)))
+
+    # check that we can find a unique matching file
+    if len(search_results) != 1:
+        raise ValueError('Could not locate file in {}'.format(search_path))
+
+    data_path_full = search_results[0]
 
     # load pickled data file
     data = pickle.load(open(data_path_full, "rb"))
@@ -816,14 +847,14 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '22_20240516'
-    axo_num_list = np.arange(4, 14)  # np.arange(5,14)
+    data_folder = '23_20240517'
+    axo_num_list = [6]  # np.arange(9)  # np.arange(5,14)
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,
-                                 'axo_recording_{:02d}'.format(axo_num))
-        abf_name = [fn for fn in os.listdir(data_path) if fn.endswith('.abf')][0]
-        abf_path = os.path.join(data_path, abf_name)
+                                 '*_{:04d}'.format(axo_num))
+        abf_path = glob.glob(os.path.join(data_path, '*.abf'))[0]
+        abf_name = Path(abf_path).stem
 
         print('Current data file: \n', abf_path)
 

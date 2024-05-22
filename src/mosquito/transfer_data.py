@@ -1,6 +1,9 @@
 """
 Some code to make transferring data between machines a little easier
 
+TODO:
+    - add README copying?
+
 """
 # ---------------------------------------
 # IMPORTS
@@ -107,8 +110,8 @@ if __name__ == "__main__":
     # ----------------------------------------------
     # get info associated with these files
     axo_creation_times = [os.path.getctime(adm) for adm in axo_dir_match]
-    axo_stems = [Path(fn).stem for fn in axo_dir_match]
-    axo_numbers = [int(fn.split('_')[-1]) for fn in axo_stems]
+    # axo_stems = [Path(fn).stem for fn in axo_dir_match]
+    # axo_numbers = [int(fn.split('_')[-1]) for fn in axo_stems]
 
     # ----------------------------------------------
     # get video file info
@@ -137,7 +140,7 @@ if __name__ == "__main__":
     # loop over axo files and add to their own folders
     for ith, axo_fn in enumerate(axo_dir_match):
         # create folder for current axo file
-        curr_folder = os.path.join(expr_folder, 'axo_recording_{:02d}'.format(axo_numbers[ith]))
+        curr_folder = os.path.join(expr_folder, Path(axo_fn).stem)
         if not os.path.exists(curr_folder):
             os.mkdir(curr_folder)
 

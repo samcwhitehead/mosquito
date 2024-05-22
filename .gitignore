@@ -84,3 +84,4 @@ fabric.properties
 external/_old/
 scratch/
 src/_old/
+*.pyc

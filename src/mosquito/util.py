@@ -123,3 +123,59 @@ def iir_notch_filter(data, cut_freq, sampling_period, Q=30):
     y = signal.filtfilt(b, a, data)
     return y
 
+
+# ------------------------------------------------------------------------------
+# rolling window that avoids looping
+def rolling_window(a, window):
+    shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+    strides = a.strides + (a.strides[-1],)
+    return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+
+
+# ------------------------------------------------------------------------------
+# hampel filter
+def hampel(x, k=7, t0=3):
+    """taken from stack overflow
+    x= 1-d numpy array of numbers to be filtered
+    k= number of items in window/2 (# forward and backward wanted to capture in median filter)
+    t0= number of standard deviations to use; 3 is default
+    """
+    dk = int((k - 1) / 2)
+    y = x.copy()  # y is the corrected series
+    L = 1.4826
+
+    # calculate rolling median
+    rolling_median = np.nanmedian(rolling_window(y, k), -1)
+    rolling_median = np.concatenate((y[:dk], rolling_median, y[-dk:]))
+
+    # compare rolling median to value at each point
+    difference = np.abs(rolling_median - y)
+    median_abs_deviation = np.nanmedian(rolling_window(difference, k), -1)
+    median_abs_deviation = np.concatenate((difference[:dk], median_abs_deviation,
+                                           difference[-dk:]))
+
+    # determine where data exceeds t0 standard deviations from the local median
+    threshold = t0 * L * median_abs_deviation
+    outlier_idx = difference > threshold
+
+    y[outlier_idx] = rolling_median[outlier_idx]
+
+    return y, outlier_idx
+
+
+# ------------------------------------------------------------------------------
+# rolling average filter
+def moving_avg(x, k=3):
+    """
+    taken from stack overflow
+    x= 1-d numpy array of numbers to be filtered
+    k= number of items in window/2 (# forward and backward wanted to capture in filter)
+    """
+    dk = int((k - 1) / 2)
+    y = x.copy()  # y is the corrected series
+
+    # calculate rolling median
+    rolling_mean = np.nanmean(rolling_window(y, k), -1)
+    rolling_mean = np.concatenate((y[:dk], rolling_mean, y[-dk:]))
+
+    return rolling_mean
