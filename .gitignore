@@ -85,3 +85,5 @@ external/_old/
 scratch/
 src/_old/
 *.pyc
+*.egg-info
+

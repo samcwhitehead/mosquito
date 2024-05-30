@@ -30,9 +30,9 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
 
 try:
-    from util import iir_notch_filter, butter_bandpass_filter
+    from util import iir_notch_filter, butter_bandpass_filter, idx_by_thresh
 except ModuleNotFoundError:
-    from .util import iir_notch_filter, butter_bandpass_filter
+    from .util import iir_notch_filter, butter_bandpass_filter, idx_by_thresh
 
 # ---------------------------------------
 # PARAMS
@@ -41,8 +41,10 @@ except ModuleNotFoundError:
 DEBUG_FLAG = False
 
 # microphone filter params
-MIC_LOWCUT = 200  # lower cutoff frequency for mic bandpass filter
-MIC_HIGHCUT = 850  # higher cutoff frequency for mic bandpass filter
+MIC_LOWCUT_AEDES = 200  # lower cutoff frequency for mic bandpass filter
+MIC_HIGHCUT_AEDES = 850  # higher cutoff frequency for mic bandpass filter
+MIC_LOWCUT_DROSOPHILA = 100  # lower cutoff frequency for mic bandpass filter
+MIC_HIGHCUT_DROSOPHILA = 300  # higher cutoff frequency for mic bandpass filter
 NPERSEG = 16384  # length of window to use in short-time fourier transform for wbf estimate
 
 # emg filter params - POWER
@@ -73,8 +75,11 @@ MIN_SPIKE_DT = 0.0015  # in seconds
 # ---------------------------------------------------------------------------------
 # noinspection PyIncorrectDocstring
 def define_params(muscle_type,
-                  mic_lowcut=MIC_LOWCUT,
-                  mic_highcut=MIC_HIGHCUT,
+                  species='aedes',
+                  mic_lowcut_aedes=MIC_LOWCUT_AEDES,
+                  mic_highcut_aedes=MIC_HIGHCUT_AEDES,
+                  mic_lowcut_drosophila=MIC_LOWCUT_DROSOPHILA,
+                  mic_highcut_drosophila=MIC_HIGHCUT_DROSOPHILA,
                   nperseg=NPERSEG,
                   notch_q=NOTCH_Q,
                   min_spike_dt=MIN_SPIKE_DT,
@@ -97,6 +102,7 @@ def define_params(muscle_type,
 
     Args:
         muscle_type: 'steer' or 'power'
+        species: 'aedes' or 'drosophila'
         * a bunch of params defined above *
 
     Returns
@@ -107,11 +113,17 @@ def define_params(muscle_type,
     params = dict()
 
     # fill in general params
-    params['mic_lowcut'] = mic_lowcut
-    params['mic_highcut'] = mic_highcut
     params['nperseg'] = nperseg
     params['notch_q'] = notch_q
     params['min_spike_dt'] = min_spike_dt
+
+    # get mic parameters based on species
+    if species == 'drosophila':
+        params['mic_lowcut'] = mic_lowcut_drosophila
+        params['mic_highcut'] = mic_highcut_drosophila
+    else:
+        params['mic_lowcut'] = mic_lowcut_aedes
+        params['mic_highcut'] = mic_highcut_aedes
 
     # fill in dict depending on muscle type
     if muscle_type == 'steer':
@@ -161,9 +173,9 @@ def my_load_abf(filename, print_flag=False):
     abf_dict['header'] = abf.headerText
 
     channel_names = abf.adcNames
-    channel_name_dict = {'Microphon':'mic',
-                         'EMG':'emg',
-                         'CAM':'cam'}
+    channel_name_dict = {'Microphon': 'mic',
+                         'EMG': 'emg',
+                         'CAM': 'cam'}
     # grab channel data
     for ith, name in enumerate(channel_names):
         # set channel
@@ -187,7 +199,7 @@ def my_load_abf(filename, print_flag=False):
 
 
 # ---------------------------------------------------------------------------------
-def filter_microphone(mic, fs, lowcut=MIC_LOWCUT, highcut=MIC_HIGHCUT,
+def filter_microphone(mic, fs, lowcut=MIC_LOWCUT_AEDES, highcut=MIC_HIGHCUT_AEDES,
                       viz_flag=False):
     """
     Filter microphone signal using butter bandpass
@@ -224,6 +236,91 @@ def filter_microphone(mic, fs, lowcut=MIC_LOWCUT, highcut=MIC_HIGHCUT,
 
 
 # ---------------------------------------------------------------------------------
+def detect_flight_bouts(mic, fs, rolling_window=501, mic_range=(0.2, 5),
+                        min_bout_duration=0.25, viz_flag=False):
+    """
+    Try to determine when the fly is actually flying, based on microphone data
+
+    Args:
+        mic: microphone signal (should prob be filtered)
+        fs: sampling frequency in Hz
+        rolling_window: size of rolling window to use for filtering envelope
+        mic_range: lower and upper bounds for mic signal amplitude for
+            flight periods.
+        min_bout_duration: minimum duration for a flight bout, in seconds
+        viz_flag: bool, visualize phase estimate?
+
+    Returns:
+        stopped_idx: index when then fly is not flying
+
+    TODO: make the bounds for valid flight periods adjustable
+    """
+    # apply Hilbert transform to mic signal to get envelope
+    analytic_mic = signal.hilbert(mic)
+    mic_envelope = np.abs(analytic_mic)
+
+    # take rolling max of envelope and filter it
+    envelope_series = pd.Series(mic_envelope)
+    envelope_filt = envelope_series.rolling(window=rolling_window,
+                                            center=True).max()
+    envelope_filt = envelope_filt.rolling(window=rolling_window,
+                                          center=True).median()
+
+    # fill nan values
+    envelope_filt.ffill(inplace=True)
+    envelope_filt.bfill(inplace=True)
+
+    # find range where mic envelope is within expected bounds for flight
+    flying_idx = (envelope_filt > mic_range[0]) & \
+                 (envelope_filt < mic_range[1])
+    flying_idx = flying_idx.values
+
+    # keep only flight bputs that are sufficiently long
+    flight_bouts = idx_by_thresh(flying_idx)
+    flight_bouts_keep = [bout for bout in flight_bouts if (1/fs)*len(bout) >
+                         min_bout_duration]
+    flying_idx_keep = np.zeros_like(flying_idx)
+    for bout in flight_bouts_keep:
+        idx1 = max([bout[0]-1, 0])
+        idx2 = min([bout[-1]+1, flying_idx_keep.size])
+        flying_idx_keep[idx1:idx2] = True
+
+    # remove stop bouts that are too short
+    stop_bouts = idx_by_thresh(~flying_idx_keep)
+    stop_bouts_drop = [bout for bout in stop_bouts if (1 / fs) * len(bout) <
+                       min_bout_duration]
+    for bout in stop_bouts_drop:
+        # adding back in too-short stop bouts.
+        # the +3 is due to a quirk of idx_by_thresh
+        flying_idx_keep[(bout[0] - 1):(bout[-1] + 2)] = True
+
+    # visualize?
+    if viz_flag:
+        # initialize figure/axis
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        # define indexed time
+        t = (1/fs)*np.arange(mic.size)
+
+        # plot data
+        mic_flying = mic.copy()
+        mic_flying[~flying_idx_keep] = np.nan
+
+        ax.plot(t, mic, 'b-', label='not flying')
+        ax.plot(t, mic_flying, 'g-', label='flying')
+        ax.plot(t, flying_idx_keep, 'r-')
+
+        # label
+        ax.set_xlabel('time (idx)')
+        ax.set_ylabel('mic (V)')
+        # plt.legend()
+
+        plt.show()
+
+    return flying_idx_keep
+
+
+# ---------------------------------------------------------------------------------
 def get_wbf_mean(mic, fs, wbf_est_high=900):
     """
     helper function to get mean wingbeat frequency using mean difference between
@@ -250,7 +347,7 @@ def get_wbf_mean(mic, fs, wbf_est_high=900):
 
 
 # ---------------------------------------------------------------------------------
-def get_wbf(mic, fs, nperseg=NPERSEG, viz_flag=False):
+def get_wbf(mic, fs, nperseg=NPERSEG, max_wbf=None, viz_flag=False):
     """
     Get per-timestep estimates of wingbeat frequency from (filtered) mic signal
     using the short-time fourier transform (STFT)
@@ -259,16 +356,29 @@ def get_wbf(mic, fs, nperseg=NPERSEG, viz_flag=False):
         mic: microphone signal
         fs: sampling frequency, in Hz
         nperseg: length of each segment for STFT. input to stft
+        max_wbf: max frequency that we will consider, in Hz.
+            If None, don't set a maximum
         viz_flag: bool, visulize wingbeat frequency estimate?
 
     Returns: wbf, estimated wingbeat frequency
 
     """
-    f, t, Zxx = signal.stft(mic, fs, nperseg=nperseg)
+    # calculate short term fourier transform
+    freq, t, Zxx = signal.stft(mic, fs, nperseg=nperseg)
+
+    # restrict attention to frequencies < max_freq
+    if max_wbf is not None:
+        keep_idx = (freq <= max_wbf)
+        freq = freq[keep_idx]
+        Zxx = Zxx[keep_idx, :]
 
     # get max vals at each time point
     freq_max_idx = np.argmax(np.abs(Zxx), axis=0)
-    freq_max = f[freq_max_idx]
+    freq_max = freq[freq_max_idx]
+
+    # upsample estimated wbf to full time range
+    t_full = (1 / fs) * np.arange(mic.size)
+    wbf = np.interp(t_full, t, freq_max)
 
     # visualize wbf estimation?
     if viz_flag:
@@ -276,19 +386,15 @@ def get_wbf(mic, fs, nperseg=NPERSEG, viz_flag=False):
         fig, ax = plt.subplots(figsize=(11, 6))
 
         # plot data
-        # ax.pcolormesh(t, f, np.abs(Zxx), shading='gouraud')
-        ax.plot(t, freq_max, 'r-')
+        ax.pcolormesh(t, freq, np.abs(Zxx), shading='gouraud')
+        ax.plot(t_full, wbf, 'r-')
 
         # label axes
-        # ax.set_title('STFT Magnitude')
+        ax.set_title('STFT Magnitude')
         ax.set_ylabel('Frequency (Hz)')
         ax.set_xlabel('Time (s)')
 
         plt.show()
-
-    # upsample estimated wbf to full time range
-    t_full = (1 / fs) * np.arange(mic.size)
-    wbf = np.interp(t_full, t, freq_max)
 
     # return wingbeat frequency estimate
     return wbf
@@ -334,7 +440,7 @@ def estimate_microphone_phase(mic, viz_flag=False):
 # ---------------------------------------------------------------------------------
 def filter_emg(emg, fs, wbf_mean, lowcut=EMG_LOWCUT_POWER,
                highcut=EMG_HIGHCUT_POWER, notch_q=NOTCH_Q,
-               band_type='bandstop', viz_flag=False):
+               band_type='bandpass', viz_flag=False):
     """
     Filter emg voltage signal using butter band + notch filter
 
@@ -680,23 +786,29 @@ def estimate_spike_rate(spike_idx, fs, n_pts, viz_flag=False):
 
 
 # ---------------------------------------------------------------------------------
-def process_abf(filename, muscle_type, debug_flag=False):
+def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
     """
     Combines functions above to do full processing of abf EMG and microphone data
 
     Args:
         filename: full path to abf file
         muscle_type: string giving muscle recording type ('steer' or 'power')
+        species: string giving fly info ('aedes' or 'drosophila')
         debug_flag: bool, visualize processing steps?
 
     Returns:
 
     """
     # get parameters for current muscle type
-    params = define_params(muscle_type)
+    params = define_params(muscle_type, species=species)
 
     # load abf data
     abf_dict = my_load_abf(filename)
+
+    # add general info
+    abf_dict['species'] = species
+    abf_dict['muscle_type'] = muscle_type
+    abf_dict['filename'] = filename
 
     # ---------------------------------
     # filter and process mic signal
@@ -713,17 +825,31 @@ def process_abf(filename, muscle_type, debug_flag=False):
     mic_phase = estimate_microphone_phase(mic_filt,
                                           viz_flag=debug_flag)
 
+    # determine periods of non-flight using mic data
+    flying_idx = detect_flight_bouts(mic_filt, fs,
+                                     viz_flag=True)  # debug_flag
+
     # get wingbeat frequencies (both mean and per-timestep)
-    wbf_mean = get_wbf_mean(mic_filt, fs)
+    if species == 'drosophila':
+        max_wbf = 300
+    elif species == 'aedes':
+        max_wbf = 900
+    else:
+        # not sure what to do for unspecified case
+        max_wbf = 900
+
+    wbf_mean = get_wbf_mean(mic_filt, fs, wbf_est_high=max_wbf)
     wbf = get_wbf(mic_filt, fs,
                   nperseg=params['nperseg'],
-                  viz_flag=debug_flag)
+                  max_wbf=max_wbf,
+                  viz_flag=True)  # debug_flag
 
     # add newly calculated stuff to dict
     abf_dict['mic_filt'] = mic_filt
     abf_dict['mic_phase'] = mic_phase
     abf_dict['wbf_mean'] = wbf_mean
     abf_dict['wbf'] = wbf
+    abf_dict['flying_idx'] = flying_idx
 
     # ---------------------------------
     # filter and process emg signal
@@ -847,19 +973,25 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '23_20240517'
-    axo_num_list = [6]  # np.arange(9)  # np.arange(5,14)
+    data_folder = '28_20240529'  # '18_20240508'  #
+    axo_num_list = [13]  # [1]  #  [3]  # np.arange(5,14)
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,
                                  '*_{:04d}'.format(axo_num))
-        abf_path = glob.glob(os.path.join(data_path, '*.abf'))[0]
+        abf_search = glob.glob(os.path.join(data_path, '*.abf'))
+        if len(abf_search) != 1:
+            print('Could not find unique file for axo {}'.format(axo_num))
+            continue
+        else:
+            abf_path = abf_search[0]
+
         abf_name = Path(abf_path).stem
 
         print('Current data file: \n', abf_path)
 
         # -----------------------------------------------------------
-        # get muscle type for current mosquito
+        # get muscle type for current fly
         log_path = os.path.join(data_root, 'experiment_log.xlsx')
         log_df = pd.read_excel(log_path)
 
@@ -870,13 +1002,44 @@ if __name__ == "__main__":
             muscle_type = 'steer'
 
         # -----------------------------------------------------------
+        # try to get species for current fly by reading README
+        readme_path = os.path.join(data_root, data_folder, 'README.txt')
+        if os.path.exists(readme_path):
+            # put README information into a dictionary
+            readme_dict = dict()
+            with open(readme_path) as f:
+                for line in f:
+                    if line.strip():
+                        # read full line
+                        line_text = line.rstrip()
+
+                        # parse line into dict item
+                        key = line_text.split(':')[0]
+                        item = line_text.split(':')[1]
+                        readme_dict[key] = item
+
+            # get species info. NB: we're going to assume aedes is default
+            species_entry = readme_dict['Species']
+            drosophila_keywords = ["drosophila", "melanogaster", "hcs+"]
+
+            if any(keyword in species_entry for keyword in drosophila_keywords):
+                species = 'drosophila'
+            else:
+                species = 'aedes'
+
+        else:
+            # otherwise just assume it's a mosquito
+            species = 'aedes'
+
+        # -----------------------------------------------------------
         # try running analysis
-        data = process_abf(abf_path, muscle_type, debug_flag=DEBUG_FLAG)
+        data = process_abf(abf_path, muscle_type, species,
+                           debug_flag=DEBUG_FLAG)
 
         # -----------------------------------------------------------
         # save dictionary containing processed data
-        save_name = abf_name.replace('.abf', '_processed.p')
-        save_path = os.path.join(data_path, save_name)
-        save_processed_data(save_path, data, file_type='pkl')
+        save_name = abf_path.replace('.abf', '_processed.p')
+        # save_path = os.path.join(data_path, save_name)
+        save_processed_data(save_name, data, file_type='pkl')
 
-        print('Completed saving: \n {}'.format(save_path))
+        print('Completed saving: \n {}'.format(save_name))

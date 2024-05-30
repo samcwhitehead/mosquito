@@ -32,6 +32,11 @@ vid_path = os.path.join(root_path, 'vid_data')  # folder with high speed video
 axo_path = os.path.join(root_path, 'axo_data')  # folder with abf files
 out_path = os.path.join(root_path, 'out')   # folder to save output to
 
+# README file info
+readme_rows = ['Date', 'Species', 'Eclosion date', 'Amplifier',
+               'Odor stimulus type', 'Odor stimulus flow type',
+               'HPA flow rate', 'Notes']
+
 
 # ---------------------------------------
 # FUNCTIONS
@@ -136,6 +141,12 @@ if __name__ == "__main__":
     expr_folder = os.path.join(out_path, next_folder)
     if not os.path.exists(expr_folder):
         os.mkdir(expr_folder)
+
+    # add README file to folder
+    readme_path = os.path.join(expr_folder, 'README.txt')
+    with open(readme_path, 'w') as f:
+        for row in readme_rows:
+            f.write('{}:\n\n'.format(row))
 
     # loop over axo files and add to their own folders
     for ith, axo_fn in enumerate(axo_dir_match):

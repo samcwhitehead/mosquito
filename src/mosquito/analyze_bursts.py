@@ -8,6 +8,7 @@ Code to analyze EMG bursts (e.g. to detect the number of spikes per burst)
 import os
 
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from scipy import signal
@@ -22,13 +23,14 @@ EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike wi
 # FUNCTIONS
 # ---------------------------------------
 # ---------------------------------------------------------------------------------
-def detect_burst_peaks(emg, burst_idx, window=EMG_WINDOW_POWER, min_height_factor=0.3,
+def detect_burst_peaks(emg, t, burst_idx, window=EMG_WINDOW_POWER, min_height_factor=0.3,
                        min_prom_factor=0.01, min_distance=8, viz_flag=False):
     """
     Function to detect the peaks (spikes) within a power muscle burst
 
     Args:
         emg: numpy array containing emg signal
+        t: numpy array containing time measurements (same size as 'emg')
         burst_idx: index associated with detected burst
         window: int, size of window around burst_idx
         min_height_factor: number to multiply by burst_waveform height
@@ -38,7 +40,9 @@ def detect_burst_peaks(emg, burst_idx, window=EMG_WINDOW_POWER, min_height_facto
         min_distance: minimum distance (x direction) between adjacent peaks
         viz_flag: bool, visualize peak detection?
 
-    Returns: peaks, array of peaks within this burst
+    Returns:
+        peaks: a list containing spike indices
+        peaks_df: a pandas DataFrame containing spike info
 
     """
     # get burst waveform and subtract off initial value
@@ -67,7 +71,28 @@ def detect_burst_peaks(emg, burst_idx, window=EMG_WINDOW_POWER, min_height_facto
 
     # get peaks in index of full 'emg' array
     peaks += idx_range[0]
-    return peaks
+
+    # get height from left minima to peak height
+    left_heights = list()
+    left_heights.append(emg[peaks[0]])
+
+    for ith in np.arange(1, peaks.size):
+        left_min = np.min(emg[peaks[ith-1]:peaks[ith]])
+        left_height = emg[peaks[ith]] - left_min
+        left_heights.append(left_height)
+
+    # create peaks DataFrame
+    peaks_dict = dict()
+    peaks_dict['burst_idx'] = burst_idx*np.ones(peaks.shape, dtype=int)
+    peaks_dict['spike_idx'] = peaks
+    peaks_dict['spike_t'] = t[peaks]
+    peaks_dict['spike_dt'] = t[peaks] - t[peaks[0]]  # time from first peak
+    peaks_dict['spike_num'] = np.arange(peaks.size)
+    peaks_dict['spike_height'] = emg[peaks]
+    peaks_dict['spike_left_height'] = np.asarray(left_heights)
+    peaks_df = pd.DataFrame.from_dict(peaks_dict)
+
+    return peaks, peaks_df
 
 
 # ---------------------------------------
