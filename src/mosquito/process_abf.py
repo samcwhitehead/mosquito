@@ -50,6 +50,8 @@ NPERSEG = 16384  # length of window to use in short-time fourier transform for w
 # emg filter params - POWER
 EMG_LOWCUT_POWER = 1  # 50  # lower cutoff frequency for muscle emg bandpass filter
 EMG_HIGHCUT_POWER = 50  # 2000  # higher cutoff frequency for muscle emg bandpass filter
+EMG_LOWCUT_POWER_DROSOPHILA = 10  # 50  # lower cutoff frequency for muscle emg bandpass filter
+EMG_HIGHCUT_POWER_DROSOPHILA = 10000  # 2000  # higher cutoff frequency for muscle emg bandpass filter
 EMG_BTYPE_POWER = 'bandpass'  # butter filter type (bandpass or bandstop)
 EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
 EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
@@ -57,11 +59,11 @@ THRESH_FACTORS_POWER = (1.5, 35)   # (1.5, 35)  # factors multiplied by thresh i
 
 # emg filter params - STEERING
 EMG_LOWCUT_STEER = 50
-EMG_HIGHCUT_STEER = 2000
+EMG_HIGHCUT_STEER = 10000
 EMG_BTYPE_STEER = 'bandpass'
 EMG_WINDOW_STEER = 32
 EMG_OFFSET_STEER = 4
-THRESH_FACTORS_STEER = (2, 8)
+THRESH_FACTORS_STEER = (1, 8)
 
 # general emg filter params
 NOTCH_Q = 2.0  # quality factor for iir notch filter
@@ -85,6 +87,8 @@ def define_params(muscle_type,
                   min_spike_dt=MIN_SPIKE_DT,
                   emg_lowcut_power=EMG_LOWCUT_POWER,
                   emg_highcut_power=EMG_HIGHCUT_POWER,
+                  emg_lowcut_power_drosophila=EMG_LOWCUT_POWER_DROSOPHILA,
+                  emg_highcut_power_drosophila=EMG_HIGHCUT_POWER_DROSOPHILA,
                   emg_btype_power=EMG_BTYPE_POWER,
                   emg_window_power=EMG_WINDOW_POWER,
                   emg_offset_power=EMG_OFFSET_POWER,
@@ -135,8 +139,12 @@ def define_params(muscle_type,
         params['thresh_factors'] = thresh_factors_steer
 
     elif muscle_type == 'power':
-        params['emg_lowcut'] = emg_lowcut_power
-        params['emg_highcut'] = emg_highcut_power
+        if species == 'drosophila':
+            params['emg_lowcut'] = emg_lowcut_power_drosophila
+            params['emg_highcut'] = emg_highcut_power_drosophila
+        else:
+            params['emg_lowcut'] = emg_lowcut_power
+            params['emg_highcut'] = emg_highcut_power
         params['emg_btype'] = emg_btype_power
         params['emg_window'] = emg_window_power
         params['emg_offset'] = emg_offset_power
@@ -491,8 +499,9 @@ def detrend_emg(emg, window=2*EMG_WINDOW_POWER):
     """
     df = pd.Series(emg)
     emg_rolling_median = df.rolling(window=window, center=True).median()
+    emg_rolling_median.fillna(value=0, inplace=True)
     emg_detrend = emg - emg_rolling_median
-    emg_detrend[np.isnan(emg_detrend)] = 0
+    # emg_detrend[np.isnan(emg_detrend)] = 0
     return emg_detrend
 
 
@@ -500,7 +509,7 @@ def detrend_emg(emg, window=2*EMG_WINDOW_POWER):
 def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
                   min_spike_dt=MIN_SPIKE_DT, thresh_factors=THRESH_FACTORS_POWER,
                   rm_spikes_flag=False, abs_flag=False, viz_flag=False,
-                  detrend_flag=False):
+                  detrend_flag=True):
     """
     Detect spikes in EMG data. For now, doing this by setting a threshold
     as a first pass detection method, then extracting windows around spikes
@@ -531,22 +540,23 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
     # calculate threshold for spike detection using median absolute deviation
     mad = np.median(np.abs(emg - np.median(emg)))
 
-    # threshold is calculated by finding ~4 sigma level (sd approximated by MAD)
+    # threshold is calculated by finding ~5 sigma level (sd approximated by MAD)
     thresh = 5 * mad / 0.6745  # 0.6745 is the factor relating median absolute deviation to sd
-
-    # Detrend emg signal (exploratory)
-    if detrend_flag:
-        emg = detrend_emg(emg, window=window)
 
     # do first-pass spike location estimate using peak detection
     min_peak_dist = np.round(fs*min_spike_dt)
     min_height = thresh_factors[0] * thresh  # 2*
     max_height = thresh_factors[1] * thresh  # 8*
 
-    if abs_flag:
-        peak_signal = np.abs(emg)
+    # take absolute value of signal (i.e. only look for positive peaks?)
+    if detrend_flag:
+        peak_signal = detrend_emg(emg, window=window)
     else:
-        peak_signal = emg
+        peak_signal = emg.copy()
+
+    if abs_flag:
+        peak_signal = np.abs(peak_signal)
+
     peaks, _ = signal.find_peaks(peak_signal,
                                  height=(min_height, max_height),
                                  distance=min_peak_dist)
@@ -634,7 +644,7 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
 
 # ---------------------------------------------------------------------------------
 def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
-                   cluster_num=None, viz_flag=False):
+                   cluster_num=None, max_clust=8, viz_flag=False):
     """
     Cluster spike waveforms
 
@@ -646,6 +656,7 @@ def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
         pca_n_comp: number of PCA components to take for clustering
         cluster_num: number of clusters to use. if None, try to evaluate optimal
             cluster number using silhouette scores
+        max_clust: maximum cluster number to check
         viz_flag: bool, visualize clusters in final clustering?
 
     Returns: cluster_labels, labels giving cluster ID for each spike
@@ -662,11 +673,12 @@ def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
     # try evaluating cluster numbers?
     if cluster_num is None:
         # initialize lists
-        range_n_clusters = [2, 3, 4, 5, 6, 7, 8]
+        range_n_clusters = np.arange(2, max_clust+1)
         silhouette_avgs = list()
 
         # initialize plotting tools
-        fig, ax_list = plt.subplots(2, 4, figsize=(11, 9))
+        n_rows = round(np.ceil(range_n_clusters.size/4))
+        fig, ax_list = plt.subplots(n_rows, 4, figsize=(11, 9))
         ax_list = ax_list.ravel()
 
         for ith, n_clusters in enumerate(range_n_clusters):
@@ -688,7 +700,7 @@ def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
             # plot clustering in waveform space
             colors = cm.tab10(cluster_labels.astype(float) / n_clusters)
             for spike, col in zip(spikes, colors):
-                ax_list[ith].plot(spike_t, spike, color=col, lw=0.35)
+                ax_list[ith].plot(spike_t, spike, color=col, lw=0.35, alpha=0.2)
 
             ax_list[ith].autoscale(enable=True, axis='x', tight=True)
             # ax_list[ith].set_xlabel('time (ms)', fontsize=20);
@@ -881,7 +893,7 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
     # estimate spike rate
     # TODO: incorporate clustered spikes into this
     spike_rate = estimate_spike_rate(spike_idx, fs, emg.size,
-                                     viz_flag=True)
+                                     viz_flag=debug_flag)
 
     # add emg content to dictionary
     abf_dict['emg_filt'] = emg_filt
@@ -973,8 +985,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '28_20240529'  # '18_20240508'  #
-    axo_num_list = [13]  # [1]  #  [3]  # np.arange(5,14)
+    data_folder = '28_20240529'
+    axo_num_list = np.arange(6, 14)
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,
