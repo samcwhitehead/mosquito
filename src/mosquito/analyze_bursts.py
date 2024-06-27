@@ -16,15 +16,16 @@ from scipy import signal
 # ---------------------------------------
 # PARAMS
 # ---------------------------------------
-EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
+BURST_WINDOW = 1028  # number of time points to get when collecting spike windows
 
 
 # ---------------------------------------
 # FUNCTIONS
 # ---------------------------------------
 # ---------------------------------------------------------------------------------
-def detect_burst_peaks(emg, t, burst_idx, window=EMG_WINDOW_POWER, min_height_factor=0.3,
-                       min_prom_factor=0.01, min_distance=8, viz_flag=False):
+def detect_burst_peaks(emg, t, burst_idx, window=BURST_WINDOW,
+                       min_height_factor=0.3, min_prom_factor=0.01,
+                       min_distance=8, viz_flag=False):
     """
     Function to detect the peaks (spikes) within a power muscle burst
 
@@ -69,6 +70,10 @@ def detect_burst_peaks(emg, t, burst_idx, window=EMG_WINDOW_POWER, min_height_fa
 
         plt.show()
 
+    if peaks.size < 1:
+        print('Could not find peaks')
+        return None, None
+
     # get peaks in index of full 'emg' array
     peaks += idx_range[0]
 
@@ -93,6 +98,72 @@ def detect_burst_peaks(emg, t, burst_idx, window=EMG_WINDOW_POWER, min_height_fa
     peaks_df = pd.DataFrame.from_dict(peaks_dict)
 
     return peaks, peaks_df
+
+
+# ---------------------------------------------------------------------------------
+def realign_spikes(spikes, spike_idx, emg, window, thresh_factor=0.5,
+                   viz_flag=False):
+    """
+    Helper function to align spike waveform traces based on when they
+    first cross a given threshold
+
+    Args:
+        spikes: list containing isolated spike waveform arrays (data['spikes'])
+        spike_idx: list of indices of detected spikes (data['spike_idx'])
+        emg: array containing raw emg data (data['emg'])
+        window: int giving the size of spike window to consider
+        thresh_factor: number to multiply by mean spike height to get
+            threshold whose crossing we align to
+        viz_flag: boolean, should we visualize aligned spikes?
+
+    Returns:
+        spikes_realigned:  list containing isolated REALIGNED spike waveforms
+        spike_realigned_idx: list of indices of REALIGNED spikes
+
+    """
+    # calculate thresh based on spike height and thresh_factor
+    mean_spike_height = np.mean(np.max(np.vstack(spikes), axis=1))
+    thresh = thresh_factor * mean_spike_height  # align waveforms to when spikes cross thresh
+
+    # loop through and get aligned spike arrays
+    spikes_realigned = list()
+    spike_realigned_idx = list()
+
+    for idx in spike_idx:
+        # get spike in current window
+        idx_range = np.arange(idx - window, idx + window)
+        spike = emg[idx_range]
+
+        # subtract off value at initial time point
+        spike -= spike[0]
+
+        # find first instance of thresh crossing
+        try:
+            thresh_idx = np.where(spike > thresh)[0][0]
+        except IndexError:
+            continue
+
+        thresh_idx += (idx - window)
+        spike_realigned_idx.append(thresh_idx)
+
+        # get spike in this new window
+        spike_new = emg[slice(thresh_idx - window, thresh_idx + 2 * window)]
+        spikes_realigned.append(spike_new)
+
+    # visualize?
+    if viz_flag:
+        # make figure and axis
+        fig, ax = plt.subplots()
+
+        # plot data
+        for spike in spikes_realigned:
+            ax.plot(spike, color='b', lw=0.1, alpha=0.1)
+
+        # label axes
+        ax.set_ylabel('emg (V)')
+        ax.set_xlabel('index')
+
+    return spikes_realigned, spike_realigned_idx
 
 
 # ---------------------------------------

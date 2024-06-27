@@ -7,6 +7,7 @@ TODO:
     - add spike clustering functions
     - add high-speed video analysis
     - should this be done with wavelets?
+    - improved detection of flight bouts (scale microphone)
 
 """
 # ---------------------------------------
@@ -50,7 +51,7 @@ NPERSEG = 16384  # length of window to use in short-time fourier transform for w
 # emg filter params - POWER
 EMG_LOWCUT_POWER = 1  # 50  # lower cutoff frequency for muscle emg bandpass filter
 EMG_HIGHCUT_POWER = 50  # 2000  # higher cutoff frequency for muscle emg bandpass filter
-EMG_LOWCUT_POWER_DROSOPHILA = 10  # 50  # lower cutoff frequency for muscle emg bandpass filter
+EMG_LOWCUT_POWER_DROSOPHILA = 10  # 10  # 50  # lower cutoff frequency for muscle emg bandpass filter
 EMG_HIGHCUT_POWER_DROSOPHILA = 10000  # 2000  # higher cutoff frequency for muscle emg bandpass filter
 EMG_BTYPE_POWER = 'bandpass'  # butter filter type (bandpass or bandstop)
 EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
@@ -244,7 +245,7 @@ def filter_microphone(mic, fs, lowcut=MIC_LOWCUT_AEDES, highcut=MIC_HIGHCUT_AEDE
 
 
 # ---------------------------------------------------------------------------------
-def detect_flight_bouts(mic, fs, rolling_window=501, mic_range=(0.2, 5),
+def detect_flight_bouts(mic, fs, rolling_window=501, mic_range=(0.5, 6.5),   # (0.2, 5.0)
                         min_bout_duration=0.25, viz_flag=False):
     """
     Try to determine when the fly is actually flying, based on microphone data
@@ -714,7 +715,6 @@ def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
         ax_list[-1].set_title('Silhouette score vs cluster count')
 
         fig.tight_layout()
-        plt.show()
 
         # get cluster number from scores
         cluster_num = range_n_clusters[np.argmax(silhouette_avgs)]
@@ -722,6 +722,11 @@ def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
         # save cluster evaluation results
         if save_path is not None:
             fig.savefig(os.path.join(save_path, 'clustering_check.png'))
+
+        if viz_flag and save_path is None:
+            plt.show()
+        else:
+            plt.close(fig)
 
     # do clustering
     clusterer = KMeans(n_clusters=cluster_num, random_state=47, n_init='auto')
@@ -877,7 +882,7 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
 
     # detect spikes
     abs_flag = (muscle_type != 'power')  # if looking at power muscles, only look at positive peaks
-    spikes, spike_t, spike_idx = detect_spikes(emg_filt, fs,
+    spikes, spike_t, spike_idx = detect_spikes(emg_filt, fs,   #
                                                window=params['emg_window'],
                                                offset=params['emg_offset'],
                                                min_spike_dt=params['min_spike_dt'],
@@ -985,8 +990,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '28_20240529'
-    axo_num_list = np.arange(6, 14)
+    data_folder = '18_20240508'  # '32_20240625'
+    axo_num_list = [0]  # np.arange(5, 10)
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,
