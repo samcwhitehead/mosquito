@@ -991,7 +991,7 @@ if __name__ == "__main__":
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
     data_folder = '33_20240626'  # '32_20240625'
-    axo_num_list = np.arange(6)
+    axo_num_list = np.arange(1, 6)
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,

@@ -82,7 +82,8 @@ fabric.properties
 
 # Custom
 external/_old/
-scratch/
+scratch/_old/
+scratch/.ipynb_checkpoints/
 src/_old/
 *.pyc
 *.egg-info
