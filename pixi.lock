@@ -11098,7 +11098,7 @@ packages:
   name: mosquito
   version: 0.1.0
   path: .
-  sha256: 1c70171d6d00d6dcd0d61f3790300dbfff544f54e7e7eee4eff727c92ce21e22
+  sha256: d61a4088c7984931c356d869cc895f78023657ab4036731084ca05447e775fa7
   requires_dist:
   - pyabf
   requires_python: '>=3.11'

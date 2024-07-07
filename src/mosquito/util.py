@@ -167,15 +167,117 @@ def hampel(x, k=7, t0=3):
 # rolling average filter
 def moving_avg(x, k=3):
     """
-    taken from stack overflow
+    just use pandas
     x= 1-d numpy array of numbers to be filtered
     k= number of items in window/2 (# forward and backward wanted to capture in filter)
     """
-    dk = int((k - 1) / 2)
-    y = x.copy()  # y is the corrected series
+    # dk = int((k - 1) / 2)
+    # y = x.copy()  # y is the corrected series
+    #
+    # # calculate rolling median
+    # rolling_mean = np.nanmean(rolling_window(y, k), -1)
+    # rolling_mean = np.concatenate((y[:dk], rolling_mean, y[-dk:]))
+    # return rolling_mean
+    import pandas as pd
+    x_ser = pd.Series(data=x)
+    sliding_average = x_ser.rolling(k).mean()
+    return sliding_average.values
 
-    # calculate rolling median
-    rolling_mean = np.nanmean(rolling_window(y, k), -1)
-    rolling_mean = np.concatenate((y[:dk], rolling_mean, y[-dk:]))
 
-    return rolling_mean
+# ------------------------------------------------------------------------------
+# Estimate local slope for a sequence of points, using a sliding window
+def moving_slope(vec, supportlength=3, modelorder=1, dt=1):
+    """
+    Estimate local slope for a sequence of points, using a sliding window
+
+    movingslope uses filter to determine the slope of a curve stored
+    as an equally (unit) spaced sequence of points. A patch is applied
+    at each end where filter will have problems. A non-unit spacing
+    can be supplied.
+
+    Note that with a 3 point window and equally spaced data sequence,
+    this code should be similar to gradient. However, with wider
+    windows this tool will be more robust to noisy data sequences.
+
+    From https://www.mathworks.com/matlabcentral/fileexchange/16997-movingslope
+
+    Arguments:
+        vec - row of column vector, to be differentiated. vec must be of
+            length at least 2.
+
+        supportlength - (OPTIONAL) scalar integer - defines the number of
+            points used for the moving window. supportlength may be no
+            more than the length of vec.
+
+            supportlength must be at least 2, but no more than length(vec)
+
+            If supportlength is an odd number, then the sliding window
+            will be central. If it is an even number, then the window
+            will be slid backwards by one element. Thus a 2 point window
+            will result in a backwards differences used, except at the
+            very first point, where a forward difference will be used.
+
+            DEFAULT: supportlength = 3
+
+        modelorder - (OPTIONAL) - scalar - Defines the order of the windowed
+            model used to estimate the slope. When model order is 1, the
+            model is a linear one. If modelorder is less than supportlength-1.
+            then the sliding window will be a regression one. If modelorder
+            is equal to supportlength-1, then the window will result in a
+            sliding Lagrange interpolant.
+
+            modelorder must be at least 1, but not exceeding
+            min(10,supportlength-1)
+
+            DEFAULT: modelorder = 1
+
+        dt - (OPTIONAL) - scalar - spacing for sequences which do not have
+            a unit spacing.
+
+            DEFAULT: dt = 1
+
+    Returns:
+        Dvec = vector of derivative estimates, Dvec will be of the same size
+            and shape as is vec.
+    """
+
+    # helper function to get filter coefficients
+    def getcoef(t, supportlength, modelorder):
+        a = np.tile(t, (modelorder + 1, 1)).T ** np.tile(np.arange(modelorder + 1), (supportlength, 1))
+        pinva = np.linalg.pinv(a)
+        coef = pinva[1, :]
+        return coef
+
+    # length of input vector
+    n = vec.size
+
+    # build filter coefficients to estimate slope
+    if (supportlength % 2) == 1:
+        parity = 1  # odd parity
+    else:
+        parity = 0  # even parity
+
+    s = (supportlength - parity) / 2
+    t = np.arange(-s + 1 - parity, s + 1)
+    coef = getcoef(t, supportlength, modelorder)
+
+    # Apply the filter to the entire vector
+    f = signal.lfilter(-coef, 1, vec)
+    Dvec = np.zeros(vec.shape)
+    idx = slice(int(s + 1), int(s + n - supportlength))
+    Dvec[idx] = f[supportlength:-1]
+
+    # Patch each end
+    for ith in range(int(s)):
+        # patch the first few points
+        t = np.arange(supportlength) - ith
+        coef = getcoef(t, supportlength, modelorder)
+        Dvec[ith] = np.dot(coef, vec[:supportlength])
+
+        # patch the end points
+        if ith < (s + parity):
+            t = np.arange(supportlength) - supportlength + ith - 1
+            coef = getcoef(t, supportlength, modelorder)
+            Dvec[n - ith - 1] = np.dot(coef, vec[n + np.arange(supportlength) - supportlength])
+
+    return Dvec

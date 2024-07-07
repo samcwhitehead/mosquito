@@ -45,7 +45,7 @@ DEBUG_FLAG = False
 MIC_LOWCUT_AEDES = 200  # lower cutoff frequency for mic bandpass filter
 MIC_HIGHCUT_AEDES = 850  # higher cutoff frequency for mic bandpass filter
 MIC_LOWCUT_DROSOPHILA = 100  # lower cutoff frequency for mic bandpass filter
-MIC_HIGHCUT_DROSOPHILA = 300  # higher cutoff frequency for mic bandpass filter
+MIC_HIGHCUT_DROSOPHILA = 300   # higher cutoff frequency for mic bandpass filter
 NPERSEG = 16384  # length of window to use in short-time fourier transform for wbf estimate
 
 # emg filter params - POWER
@@ -64,7 +64,7 @@ EMG_HIGHCUT_STEER = 10000
 EMG_BTYPE_STEER = 'bandpass'
 EMG_WINDOW_STEER = 32
 EMG_OFFSET_STEER = 4
-THRESH_FACTORS_STEER = (1, 8)
+THRESH_FACTORS_STEER = (0.75, 8)
 
 # general emg filter params
 NOTCH_Q = 2.0  # quality factor for iir notch filter
@@ -510,7 +510,7 @@ def detrend_emg(emg, window=2*EMG_WINDOW_POWER):
 def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
                   min_spike_dt=MIN_SPIKE_DT, thresh_factors=THRESH_FACTORS_POWER,
                   rm_spikes_flag=False, abs_flag=False, viz_flag=False,
-                  detrend_flag=True):
+                  detrend_flag=False):
     """
     Detect spikes in EMG data. For now, doing this by setting a threshold
     as a first pass detection method, then extracting windows around spikes
@@ -882,12 +882,14 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
 
     # detect spikes
     abs_flag = (muscle_type != 'power')  # if looking at power muscles, only look at positive peaks
+    detrend_flag = (muscle_type == 'power')  # if looking at power muscles, detrend signal
     spikes, spike_t, spike_idx = detect_spikes(emg_filt, fs,   #
                                                window=params['emg_window'],
                                                offset=params['emg_offset'],
                                                min_spike_dt=params['min_spike_dt'],
                                                thresh_factors=params['thresh_factors'],
                                                abs_flag=abs_flag,
+                                               detrend_flag=detrend_flag,
                                                viz_flag=True)  # DEBUG_FLAG
 
     # cluster spikes(?)
@@ -990,8 +992,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '33_20240626'  # '32_20240625'
-    axo_num_list = np.arange(1, 6)
+    data_folder = '36_20240702'  # '33_20240626'  # '32_20240625'
+    axo_num_list = [5]  # np.arange(4, 6)
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,
@@ -1039,7 +1041,7 @@ if __name__ == "__main__":
             species_entry = readme_dict['Species']
             drosophila_keywords = ["drosophila", "melanogaster", "hcs+"]
 
-            if any(keyword in species_entry for keyword in drosophila_keywords):
+            if any(keyword in species_entry.lower() for keyword in drosophila_keywords):
                 species = 'drosophila'
             else:
                 species = 'aedes'

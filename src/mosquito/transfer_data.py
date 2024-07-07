@@ -29,6 +29,7 @@ DATE = None
 # define paths to data
 root_path = '/media/sam/SamData/Mosquitoes/testing'
 vid_path = os.path.join(root_path, 'vid_data')  # folder with high speed video
+snapshot_path = os.path.join(root_path, 'snapshots')  # folder with snapshots of electrode position
 axo_path = os.path.join(root_path, 'axo_data')  # folder with abf files
 out_path = os.path.join(root_path, 'out')   # folder to save output to
 
@@ -115,8 +116,6 @@ if __name__ == "__main__":
     # ----------------------------------------------
     # get info associated with these files
     axo_creation_times = [os.path.getctime(adm) for adm in axo_dir_match]
-    # axo_stems = [Path(fn).stem for fn in axo_dir_match]
-    # axo_numbers = [int(fn.split('_')[-1]) for fn in axo_stems]
 
     # ----------------------------------------------
     # get video file info
@@ -127,6 +126,14 @@ if __name__ == "__main__":
     vid_tstamps = [vid_filename_to_tstamp(fn) for fn in vid_fns]
 
     # ----------------------------------------------
+    # get snapshot file info
+    snapshot_dir = glob.glob(os.path.join(snapshot_path, '*/*.bmp'))
+    snapshot_fns = [os.path.splitext(os.path.basename(ss))[0] for ss in snapshot_dir]
+
+    # get timestamps for snapshots
+    snapshot_tstamps = [vid_filename_to_tstamp(fn) for fn in snapshot_fns]
+
+    # ----------------------------------------------
     # get indices for matching vids to axo
     axo_bins = axo_creation_times.copy()
     final_abf = pyabf.ABF(axo_dir_match[-1])
@@ -134,6 +141,7 @@ if __name__ == "__main__":
     axo_bins.append(final_abf_duration + axo_bins[-1])
 
     vid_abf_ind = np.digitize(np.asarray(vid_tstamps), bins=axo_bins) - 1
+    snapshot_abf_ind = np.digitize(np.asarray(snapshot_tstamps), bins=axo_bins) - 1
 
     # ----------------------------------------------
     # copy things over
@@ -165,13 +173,22 @@ if __name__ == "__main__":
         curr_vid_ind = np.where(vid_abf_ind == ith)[0]
         for cvi in curr_vid_ind:
             vid_src_path = vid_dir[cvi]
+            vid_src_folder = os.path.normpath(os.path.join(vid_src_path, '..'))
             vid_dst_folder = os.path.join(curr_folder, vid_fns[cvi])
-            if not os.path.exists(vid_dst_folder):
-                os.mkdir(vid_dst_folder)
 
-            vid_dst_path = os.path.join(vid_dst_folder, vid_fns[cvi])
-            if not os.path.exists(vid_dst_path):
-                print('Copying {} \n to {} ...'.format(vid_src_path, vid_dst_path))
-                shutil.copy2(vid_src_path, vid_dst_path)
+            if not os.path.exists(vid_dst_folder):
+                print('Copying {} \n to {} ...'.format(vid_src_folder, vid_dst_folder))
+                shutil.copytree(vid_src_folder, vid_dst_folder)
+
+        # if there are photron snapshots associated with this axo file, copy those as well
+        curr_snapshot_ind = np.where(snapshot_abf_ind == ith)[0]
+        for csi in curr_snapshot_ind:
+            snapshot_src_path = snapshot_dir[csi]
+            snapshot_basename = os.path.basename(snapshot_src_path)
+            snapshot_dst_path = os.path.join(curr_folder, snapshot_basename)
+
+            if not os.path.exists(snapshot_dst_path):
+                print(f'Copying {snapshot_src_path} \n to {snapshot_dst_path} ...')
+                shutil.copy2(snapshot_src_path, snapshot_dst_path)
 
     print('=========== \n Done \n ===========')
