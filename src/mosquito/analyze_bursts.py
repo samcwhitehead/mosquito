@@ -5,8 +5,6 @@ Code to analyze EMG bursts (e.g. to detect the number of spikes per burst)
 # ---------------------------------------
 # IMPORTS
 # ---------------------------------------
-import os
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -22,15 +20,39 @@ except ModuleNotFoundError:
 # ---------------------------------------
 # PARAMS
 # ---------------------------------------
+# size of window for realigned bursts
 BURST_WINDOW = 1024  # was 1028? # number of time points to get when collecting spike windows
 
+# filter parameters for filter_for_spike_detection
+FILT_FLAG = True
+FILT_ORDER = 25
+MOVING_AVG_WIN = 7
+
+# parameters for spike detection
+MIN_HEIGHT_FACTOR = 0.3  # number to multiply by burst height to get minimum spike height
+MIN_PROM_FACTOR = 0.025  # number to multiply by burst height to get minimum spike prominence
+MIN_DISTANCE = 40  # minimum distance between detected spikes (in index)
+
+DERIV_HEIGHT_FACTOR = 0.1  # number to multiply by burst derivative height to get min peak height
+DERIV_WIDTH_BOUNDS = (20, 100)  # range of acceptable *derivative* peak widths, in index
+
+DETREND_FLAG = True  # detrend burst signal?
+REFINE_FLAG = True  # try to refine detected spike peaks (in _deriv method)
+
+# parameters for moving_slope derivative of burst waveform (see util.moving_slope)
+SUPPORTLENGTH = 101
+MODELORDER = 7
+
+# parameters for realigning spikes
+THRESH_FACTOR = 0.4  # number to multiply by burst height to get threshold for rise time point
 
 # ---------------------------------------
 # FUNCTIONS
 # ---------------------------------------
 # ---------------------------------------------------------------------------------
 def filter_for_spike_detection(emg, fs, wbf, flying_idx=None,
-                               filt_order=25, moving_avg_win=7):
+                               filt_order=FILT_ORDER,
+                               moving_avg_win=MOVING_AVG_WIN):
     """
     Function to filter emg data so we can detect spikes within bursts of it
     Mainly using this to remove noise at wingbeat frequency, but also a little
@@ -64,8 +86,9 @@ def filter_for_spike_detection(emg, fs, wbf, flying_idx=None,
 
 
 # ---------------------------------------------------------------------------------
-def detect_burst_peaks(burst_waveform, min_height_factor=0.3, min_prom_factor=0.025,
-                       min_distance=40, burst_waveform_filt=None, detrend_flag=True,
+def detect_burst_peaks(burst_waveform, min_height_factor=MIN_HEIGHT_FACTOR,
+                       min_prom_factor=MIN_PROM_FACTOR, min_distance=MIN_DISTANCE,
+                       burst_waveform_filt=None, detrend_flag=DETREND_FLAG,
                        viz_flag=False):
     """
     Function to detect the peaks (spikes) within a power muscle burst
@@ -148,10 +171,16 @@ def detect_burst_peaks(burst_waveform, min_height_factor=0.3, min_prom_factor=0.
 
 
 # ---------------------------------------------------------------------------------
-def detect_burst_peaks_deriv(burst_waveform, deriv_height_factor=0.1,
-                             min_height_factor=0.3, deriv_width_bounds=(20, 100),
-                             burst_waveform_filt=None, refine_flag=True,
-                             detrend_flag=True, viz_flag=False):
+def detect_burst_peaks_deriv(burst_waveform,
+                             deriv_height_factor=DERIV_HEIGHT_FACTOR,
+                             min_height_factor=MIN_HEIGHT_FACTOR,
+                             deriv_width_bounds=DERIV_WIDTH_BOUNDS,
+                             burst_waveform_filt=None,
+                             supportlength=SUPPORTLENGTH,
+                             modelorder=MODELORDER,
+                             refine_flag=REFINE_FLAG,
+                             detrend_flag=DETREND_FLAG,
+                             viz_flag=False):
     """
     An alternate approach to detecting spikes within an EMG burst based on first
     finding peaks in the derivative of the signal. Works poorly on noisy data,
@@ -166,6 +195,8 @@ def detect_burst_peaks_deriv(burst_waveform, deriv_height_factor=0.1,
         deriv_width_bounds: min and max *derivative* peak width, in index units
         burst_waveform_filt: filtered burst waveform data (smooth enough to not
             show bursting)
+        supportlength, modelorder: parameters for moving_slope derivative function
+            (see util.moving_slope)
         refine_flag: try an additional refinement step for peak location at the end?
         detrend_flag: detrend burst waveform signal? Useful for high bg drift
         viz_flag: bool, visualize peak detection?
@@ -181,7 +212,9 @@ def detect_burst_peaks_deriv(burst_waveform, deriv_height_factor=0.1,
         burst_waveform = signal.detrend(burst_waveform)  # detrend data
 
     # find derivative points corresponding to pre-spike rises
-    burst_waveform_dot = moving_slope(burst_waveform, supportlength=101, modelorder=7)
+    burst_waveform_dot = moving_slope(burst_waveform,
+                                      supportlength=supportlength,
+                                      modelorder=modelorder)
     height_bounds = (deriv_height_factor * np.max(burst_waveform_dot), None)
     deriv_peaks, props = signal.find_peaks(burst_waveform_dot,
                                            height=height_bounds,
@@ -317,8 +350,8 @@ def get_peak_props(peaks, emg, t, burst_idx):
 
 
 # ---------------------------------------------------------------------------------
-def realign_spikes(spikes, spike_idx, emg, window=BURST_WINDOW, thresh_factor=0.5,
-                   viz_flag=False):
+def realign_spikes(spikes, spike_idx, emg, window=BURST_WINDOW,
+                   thresh_factor=THRESH_FACTOR, viz_flag=False):
     """
     Helper function to align spike waveform traces based on when they
     first cross a given threshold
@@ -351,6 +384,7 @@ def realign_spikes(spikes, spike_idx, emg, window=BURST_WINDOW, thresh_factor=0.
         spike = emg[idx_range]
 
         # subtract off value at initial time point
+        spike = signal.detrend(spike)
         spike -= spike[0]
 
         # find first instance of thresh crossing
@@ -383,22 +417,49 @@ def realign_spikes(spikes, spike_idx, emg, window=BURST_WINDOW, thresh_factor=0.
 
 
 # ---------------------------------------------------------------------------------
-def peak_detection_test(data, n_cols=3, filt_flag=True):
+def run_spike_detection(data,
+                        deriv_height_factor=DERIV_HEIGHT_FACTOR,
+                        min_height_factor=MIN_HEIGHT_FACTOR,
+                        deriv_width_bounds=DERIV_WIDTH_BOUNDS,
+                        supportlength=SUPPORTLENGTH,
+                        modelorder=MODELORDER,
+                        realign_thresh=THRESH_FACTOR,
+                        filt_order=FILT_ORDER,
+                        moving_avg_win=MOVING_AVG_WIN,
+                        refine_flag=REFINE_FLAG,
+                        detrend_flag=DETREND_FLAG,
+                        filt_flag=FILT_FLAG,
+                        viz_flag=False):
     """
-    Function to test how well our peak detection is doing by visualizing the results
+    Function to perform spike detection on all bursts within a trial, taking a
+    data dictionary as input
 
     Args:
         data: data dictionary from process_abf.py
-        n_cols: number of subplot columns
+        deriv_height_factor: number to multiply by burst waveform derivative height
+            to get minimum height in peak detection
+        min_height_factor: number to multiply by burst_waveform height
+            to get minimum height for peaks
+        deriv_width_bounds: min and max *derivative* peak width, in index units
+        supportlength, modelorder: parameters for moving_slope derivative function
+            (see util.moving_slope)
+        realign_thresh: factor used to find rise time in realign_spikes
+        filt_order: order for bandstop filter in filter_emg_for_spike_detection
+        moving_avg_win: rolling mean window size in filter_emg_for_spike_detection
+        refine_flag: try an additional refinement step for peak location at the end?
+        detrend_flag: detrend emg signal prior to spike detection?
         filt_flag: try an additional filtering of data to remove wbf noise?
+        viz_flag: bool, visualize spike detection?
 
     Returns:
-        fig, ax_list: figure and axis handles for results
 
+
+    TODO:
+        - add spike props?
     """
-    # -------------------------------------------------------------------
+    # ---------------------------------------------------------
     # Analysis
-    # -------------------------------------------------------------------
+    # ---------------------------------------------------------
     # read out the data we need for peak detection
     emg = data['emg']
     emg_filt = data['emg_filt']
@@ -412,24 +473,34 @@ def peak_detection_test(data, n_cols=3, filt_flag=True):
         flying_idx = data['flying_idx']
         fs = data['sampling_freq']
 
-        emg = filter_for_spike_detection(emg, fs, wbf, flying_idx=flying_idx)
+        emg = filter_for_spike_detection(emg, fs, wbf,
+                                         flying_idx=flying_idx,
+                                         filt_order=filt_order,
+                                         moving_avg_win=moving_avg_win)
 
-    # get array of realigned spikes
-    _, realigned_idx = realign_spikes(data['spikes'], burst_idx, emg_raw, thresh_factor=0.25)
+    # realign bursts to rise time
+    _, realigned_idx = realign_spikes(data['spikes'], burst_idx, emg_raw,
+                                      window=window, thresh_factor=realign_thresh)
+
+    # get bursts into zeroed array
     bursts_realigned = [emg[slice(idx - window, idx + 2 * window)] for idx in realigned_idx]
     burst_array = np.vstack(bursts_realigned)
     # subtract off initial value
     burst_array -= np.reshape(np.mean(burst_array[:, :window], axis=1), (-1, 1))
 
     # get array of LOWPASS FILTERED realigned spikes
-    bursts_filt_realigned = [emg_filt[slice(idx - window, idx + 2 * window)] for idx in realigned_idx]
+    bursts_filt_realigned = [emg_filt[slice(idx - window, idx + 2 * window)]
+                             for idx in realigned_idx]
     burst_filt_array = np.vstack(bursts_filt_realigned)
     # subtract off initial value
     burst_filt_array -= np.reshape(np.mean(burst_filt_array[:, :window], axis=1), (-1, 1))
 
-    # loop over bursts and count spikes
-    n_spikes_list = list()
-    spikes_list = list()
+    # loop over bursts and count spikes (calling them peaks for now to avoid confusion)
+    n_peaks_list = list()
+    peak_idx_list = list()
+    peak_idx_global_list = list()
+    burst_idx_list = list()
+    spike_num_list = list()
     ignore_idx = np.zeros(burst_array.shape[0], dtype=bool)  # store which bursts have no spikes(?)
 
     for jth, burst in enumerate(burst_array):
@@ -437,77 +508,96 @@ def peak_detection_test(data, n_cols=3, filt_flag=True):
         burst_filt = burst_filt_array[jth, :]
 
         # detect spikes
-        spike_idx = detect_burst_peaks_deriv(burst,
-                                             burst_waveform_filt=burst_filt,
-                                             viz_flag=False)  # )
+        peak_idx = detect_burst_peaks_deriv(burst,
+                                            deriv_height_factor=deriv_height_factor,
+                                            min_height_factor=min_height_factor,
+                                            deriv_width_bounds=deriv_width_bounds,
+                                            burst_waveform_filt=burst_filt,
+                                            supportlength=supportlength,
+                                            modelorder=modelorder,
+                                            refine_flag=refine_flag,
+                                            detrend_flag=detrend_flag,
+                                            viz_flag=False)
 
-        # store info - to ignore if we don't detect anything, otherwise spikes
-        if spike_idx is None:
+        # if we don't detect anything, note the index and put some filler values in
+        if peak_idx is None:
             ignore_idx[jth] = True
+            peak_idx = np.array([np.nan])
+            n_peaks_curr = 0
+            spike_nums = np.array([np.nan])
         else:
-            n_spikes_list.append(spike_idx.size)
-            spikes_list.append(spike_idx)
+            n_peaks_curr = peak_idx.size
+            spike_nums = np.arange(n_peaks_curr)
+        # strore info
+        n_peaks_list.append(n_peaks_curr)
+        peak_idx_list.append(peak_idx)
+        peak_idx_global_list.append(peak_idx + (realigned_idx[jth] - window))
+        burst_idx_list.append([realigned_idx[jth] for x in peak_idx])
+        spike_num_list.append(spike_nums)
 
-    # remove bursts with no spikes
-    burst_array = burst_array[~ignore_idx, :]
+    # put spike info into array form
+    peak_idx_array = np.hstack(peak_idx_list)
+    peak_idx_global_array = np.hstack(peak_idx_global_list)
+    burst_idx_array = np.hstack(burst_idx_list)
+    spike_num_array = np.hstack(spike_num_list)
 
-    # -------------------------------------------------------------------
-    # Plotting
-    # -------------------------------------------------------------------
-    # figure out dimensions for plot grid
-    n_spikes = np.asarray(n_spikes_list)
-    n_spikes_unique = np.unique(n_spikes)
+    # put spike info into pandas dataframe
+    peaks_df = pd.DataFrame.from_dict({'peak_idx': peak_idx_array,
+                                       'peak_idx_global': peak_idx_global_array,
+                                       'burst_idx': burst_idx_array,
+                                       'peak_num': spike_num_array})
 
-    n_rows = int(np.ceil((n_spikes_unique.size + 1) / n_cols))
-    fig_height = 4*n_rows
+    # ---------------------------------------------------------
+    # Plotting?
+    # ---------------------------------------------------------
+    if viz_flag:
+        # for visualizations, remove problem bursts
+        n_spikes = np.asarray(n_peaks_list)
+        n_spikes_cleaned = n_spikes[~ignore_idx]
+        n_spikes_unique = np.unique(n_spikes_cleaned)
+        burst_array_cleaned = burst_array[~ignore_idx, :]
 
-    fig, ax_list = plt.subplots(n_rows, n_cols, figsize=(10, fig_height))
-    ax_list = ax_list.ravel()
+        # figure out dimensions for plot grid
+        n_cols = 3
+        n_rows = int(np.ceil((n_spikes_unique.size + 1) / n_cols))
+        fig_height = 4*n_rows
 
-    # loop over values of spike num and plot traces
-    for ith, spike_num in enumerate(n_spikes_unique):
-        # get data for current spike count
-        burst_idx_curr = (n_spikes == spike_num)
-        bursts = burst_array[burst_idx_curr, :]
+        fig, ax_list = plt.subplots(n_rows, n_cols, figsize=(10, fig_height))
+        ax_list = ax_list.ravel()
 
-        # plot each burst
-        for burst in bursts:
-            ax_list[ith].plot(burst, 'g-', lw=0.2, alpha=0.2)
+        # loop over values of spike num and plot traces
+        for ith, spike_num in enumerate(n_spikes_unique):
+            # get data for current spike count
+            burst_idx_curr = (n_spikes_cleaned == spike_num)
+            bursts = burst_array_cleaned[burst_idx_curr, :]
 
-        # plot mean
-        ax_list[ith].plot(np.mean(bursts, axis=0), 'r-')
+            # plot each burst
+            for burst in bursts:
+                ax_list[ith].plot(burst, 'g-', lw=0.2, alpha=0.2)
 
-        # label axes
-        ax_list[ith].set_xticks([])
-        ax_list[ith].set_yticks([])
-        ax_list[ith].set_title(f'{spike_num} spikes')
+            # plot mean
+            ax_list[ith].plot(np.mean(bursts, axis=0), 'r-')
 
-    # make the next axis show the histogram of peak times
-    ax_list[ith + 1].hist(np.hstack(spikes_list), bins=100)
-    ax_list[ith + 1].set_xlabel('spike index')
-    ax_list[ith + 1].set_ylabel('count')
+            # label axes
+            ax_list[ith].set_xticks([])
+            ax_list[ith].set_yticks([])
+            ax_list[ith].set_title(f'{spike_num} spikes')
 
-    # remove other axes
-    for kth in range(ith+2, len(ax_list)):
-        ax_list[kth].remove()
+        # make the next axis show the histogram of peak times
+        ax_list[ith + 1].hist(np.hstack(peak_idx_list), bins=100)
+        ax_list[ith + 1].set_xlabel('spike index')
+        ax_list[ith + 1].set_ylabel('count')
 
-    # show figure
-    fig.tight_layout()
-    plt.show()
+        # remove other axes
+        for kth in range(ith+2, len(ax_list)):
+            ax_list[kth].remove()
+
+        # show figure
+        fig.tight_layout()
+        plt.show()
 
     # return
-    return fig, ax_list, n_spikes
-
-
-# ---------------------------------------------------------------------------------
-def get_mean_waveform_spikes():
-    """
-    Function to detect the spike peaks in the MEAN waveform of EMG bursts.
-    Because we expect the mean to be smoother than an individual trace, and
-    bursts have pretty regular shapes, can use this to constrain general
-    peak detection
-
-    """
+    return peaks_df
 
 
 # ---------------------------------------
@@ -515,9 +605,11 @@ def get_mean_waveform_spikes():
 # ---------------------------------------
 if __name__ == "__main__":
     # for now, use this as burst detection check
-    data_folder = '28_20240529'  # '24_20240520'  # '23_20240517'  #
+    data_folder = 23  # '23_20240517'  #
     axo_num = 2  # 8  #  6  #
 
+    # load data
     data = load_processed_data(data_folder, axo_num)
 
-    f, al, n_spikes = peak_detection_test(data, filt_flag=True)
+    # get spike info
+    spike_df = run_spike_detection(data, viz_flag=True)

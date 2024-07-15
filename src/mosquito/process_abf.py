@@ -48,6 +48,11 @@ MIC_LOWCUT_DROSOPHILA = 100  # lower cutoff frequency for mic bandpass filter
 MIC_HIGHCUT_DROSOPHILA = 300   # higher cutoff frequency for mic bandpass filter
 NPERSEG = 16384  # length of window to use in short-time fourier transform for wbf estimate
 
+# flight bout detection (from mic signal)
+MIC_RANGE = (0.25, 6.5)  # (0.5, 6.5) volts. values outside this range are counted as non-flying
+MIN_BOUT_DURATION = 0.5  # 0.25 # seconds. flying bouts must be at least this long
+ROLLING_WINDOW = 501  # size of rolling window for mic amplitude processing
+
 # emg filter params - POWER
 EMG_LOWCUT_POWER = 1  # 50  # lower cutoff frequency for muscle emg bandpass filter
 EMG_HIGHCUT_POWER = 50  # 2000  # higher cutoff frequency for muscle emg bandpass filter
@@ -56,15 +61,15 @@ EMG_HIGHCUT_POWER_DROSOPHILA = 10000  # 2000  # higher cutoff frequency for musc
 EMG_BTYPE_POWER = 'bandpass'  # butter filter type (bandpass or bandstop)
 EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
 EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
-THRESH_FACTORS_POWER = (1.5, 35)   # (1.5, 35)  # factors multiplied by thresh in spike peak detection
+THRESH_FACTORS_POWER = (3.5, 35)   # (1.5, 35)  # factors multiplied by thresh in spike peak detection
 
 # emg filter params - STEERING
-EMG_LOWCUT_STEER = 50
+EMG_LOWCUT_STEER = 300  # 50
 EMG_HIGHCUT_STEER = 10000
 EMG_BTYPE_STEER = 'bandpass'
 EMG_WINDOW_STEER = 32
 EMG_OFFSET_STEER = 4
-THRESH_FACTORS_STEER = (0.75, 8)
+THRESH_FACTORS_STEER = (1.0, 8)
 
 # general emg filter params
 NOTCH_Q = 2.0  # quality factor for iir notch filter
@@ -245,8 +250,9 @@ def filter_microphone(mic, fs, lowcut=MIC_LOWCUT_AEDES, highcut=MIC_HIGHCUT_AEDE
 
 
 # ---------------------------------------------------------------------------------
-def detect_flight_bouts(mic, fs, rolling_window=501, mic_range=(0.5, 6.5),   # (0.2, 5.0)
-                        min_bout_duration=0.25, viz_flag=False):
+def detect_flight_bouts(mic, fs, rolling_window=ROLLING_WINDOW,
+                        mic_range=MIC_RANGE, min_bout_duration=MIN_BOUT_DURATION,
+                        viz_flag=False):
     """
     Try to determine when the fly is actually flying, based on microphone data
 
@@ -447,7 +453,7 @@ def estimate_microphone_phase(mic, viz_flag=False):
 
 
 # ---------------------------------------------------------------------------------
-def filter_emg(emg, fs, wbf_mean, lowcut=EMG_LOWCUT_POWER,
+def filter_emg(emg, fs, wbf_mean=None, lowcut=EMG_LOWCUT_POWER,
                highcut=EMG_HIGHCUT_POWER, notch_q=NOTCH_Q,
                band_type='bandpass', viz_flag=False):
     """
@@ -466,7 +472,10 @@ def filter_emg(emg, fs, wbf_mean, lowcut=EMG_LOWCUT_POWER,
     Returns: emg_filt, the filtered emg signal
     """
     # notch filter to remove wbf signal (wbf_mean is cut freq)
-    emg_filt = iir_notch_filter(emg, wbf_mean, 1/fs, Q=notch_q)  # Q=0.5
+    if wbf_mean is not None:
+        emg_filt = iir_notch_filter(emg, wbf_mean, 1/fs, Q=notch_q)  # Q=0.5
+    else:
+        emg_filt = emg.copy()
 
     # band(pass or stop) filter to remove noise at extremes
     emg_filt = butter_bandpass_filter(emg_filt, lowcut, highcut, 1 / fs,
@@ -502,7 +511,7 @@ def detrend_emg(emg, window=2*EMG_WINDOW_POWER):
     emg_rolling_median = df.rolling(window=window, center=True).median()
     emg_rolling_median.fillna(value=0, inplace=True)
     emg_detrend = emg - emg_rolling_median
-    # emg_detrend[np.isnan(emg_detrend)] = 0
+
     return emg_detrend
 
 
@@ -551,7 +560,7 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
 
     # take absolute value of signal (i.e. only look for positive peaks?)
     if detrend_flag:
-        peak_signal = detrend_emg(emg, window=window)
+        peak_signal = detrend_emg(emg, window=round(4*window))  # window=window)   #
     else:
         peak_signal = emg.copy()
 
@@ -844,7 +853,7 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
 
     # determine periods of non-flight using mic data
     flying_idx = detect_flight_bouts(mic_filt, fs,
-                                     viz_flag=True)  # debug_flag
+                                     viz_flag=debug_flag)  # debug_flag
 
     # get wingbeat frequencies (both mean and per-timestep)
     if species == 'drosophila':
@@ -859,7 +868,7 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
     wbf = get_wbf(mic_filt, fs,
                   nperseg=params['nperseg'],
                   max_wbf=max_wbf,
-                  viz_flag=True)  # debug_flag
+                  viz_flag=debug_flag)  # debug_flag
 
     # add newly calculated stuff to dict
     abf_dict['mic_filt'] = mic_filt
@@ -953,7 +962,7 @@ def save_processed_data(filename, abf_dict, file_type='pkl'):
 
 
 # ---------------------------------------------------------------------------------
-def load_processed_data(expr_folder, axo_num,
+def load_processed_data(folder_id, axo_num,
                         root_path='/media/sam/SamData/Mosquitoes',
                         subfolder_str='*_{:04d}',
                         ext='.pkl'):
@@ -961,7 +970,8 @@ def load_processed_data(expr_folder, axo_num,
     Convenience function to LOAD dictionary containing processed abf data
 
     Args:
-        expr_folder: folder containing processed data (in form XX_YYYYMMDD)
+        folder_id: folder containing processed data (in form XX_YYYYMMDD).
+            If just a number is given, search for the matching folder index
         axo_num: per-day index of data file
         root_path: parent folder containing set of experiment folders
         subfolder_str: format of folder name inside experiment_folder
@@ -969,6 +979,16 @@ def load_processed_data(expr_folder, axo_num,
 
     Returns: None
     """
+    # check input type -- if it's a two-digit number, search for folder
+    if str(folder_id).isnumeric():
+        expr_folders = [f for f in os.listdir(root_path)
+                        if os.path.isdir(os.path.join(root_path, f))
+                        and f[:2].isdigit()]
+        expr_folder_inds = [int(f.split('_')[0]) for f in expr_folders]
+        expr_folder = expr_folders[expr_folder_inds.index(int(folder_id))]
+    else:
+        expr_folder = folder_id
+
     # find path to data file, given info
     search_path = os.path.join(root_path, expr_folder, subfolder_str.format(axo_num))
     search_results = glob.glob(os.path.join(search_path, '*{}'.format(ext)))
@@ -992,8 +1012,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '36_20240702'  # '33_20240626'  # '32_20240625'
-    axo_num_list = [5]  # np.arange(4, 6)
+    data_folder = '33_20240626'  # '33_20240626'  # '32_20240625'
+    axo_num_list = [2]  # np.arange(9)
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,
@@ -1016,7 +1036,7 @@ if __name__ == "__main__":
 
         row_idx = (log_df['Day'] == data_folder) & (log_df['Axo Num'] == axo_num)
         muscle_type = log_df.loc[row_idx]['Target Muscle Type'].values[0]
-
+        muscle_type = muscle_type.strip()
         if not muscle_type == 'power':
             muscle_type = 'steer'
 
