@@ -5,6 +5,8 @@ Code to analyze EMG bursts (e.g. to detect the number of spikes per burst)
 # ---------------------------------------
 # IMPORTS
 # ---------------------------------------
+import os
+import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -45,6 +47,7 @@ MODELORDER = 7
 
 # parameters for realigning spikes
 THRESH_FACTOR = 0.4  # number to multiply by burst height to get threshold for rise time point
+
 
 # ---------------------------------------
 # FUNCTIONS
@@ -598,6 +601,53 @@ def run_spike_detection(data,
 
     # return
     return peaks_df
+
+
+# ---------------------------------------------------------------------------------
+def load_burst_data(folder_id, axo_num,
+                    root_path='/media/sam/SamData/Mosquitoes',
+                    subfolder_str='*_{:04d}',
+                    data_file_str='spike_df',
+                    ext='.pkl'):
+    """
+    Convenience function to load a dataframe containing burst info
+
+
+    Args:
+        folder_id: folder containing processed data (in form XX_YYYYMMDD).
+            If just a number is given, search for the matching folder index
+        axo_num: per-day index of data file
+        root_path: parent folder containing set of experiment folders
+        subfolder_str: format of folder name inside experiment_folder
+        data_file_str: string giving data filename, used to look for file
+        ext: extension for analysis file
+
+    Returns: None
+    """
+    # check input type -- if it's a two-digit number, search for folder
+    if str(folder_id).isnumeric():
+        expr_folders = [f for f in os.listdir(root_path)
+                        if os.path.isdir(os.path.join(root_path, f))
+                        and f[:2].isdigit()]
+        expr_folder_inds = [int(f.split('_')[0]) for f in expr_folders]
+        expr_folder = expr_folders[expr_folder_inds.index(int(folder_id))]
+    else:
+        expr_folder = folder_id
+
+    # find path to data file, given info
+    search_path = os.path.join(root_path, expr_folder, subfolder_str.format(axo_num))
+    search_results = glob.glob(os.path.join(search_path, f'*{data_file_str}{ext}'))
+
+    # check that we can find a unique matching file
+    if len(search_results) != 1:
+        raise ValueError('Could not locate file in {}'.format(search_path))
+
+    data_path_full = search_results[0]
+
+    # load pickled data file
+    data = pd.read_pickle(data_path_full)
+
+    return data
 
 
 # ---------------------------------------

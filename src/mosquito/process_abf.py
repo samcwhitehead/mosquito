@@ -49,7 +49,7 @@ MIC_HIGHCUT_DROSOPHILA = 300   # higher cutoff frequency for mic bandpass filter
 NPERSEG = 16384  # length of window to use in short-time fourier transform for wbf estimate
 
 # flight bout detection (from mic signal)
-MIC_RANGE = (0.25, 6.5)  # (0.5, 6.5) volts. values outside this range are counted as non-flying
+MIC_RANGE = (0.35, 8.5)  # (0.5, 6.5) volts. values outside this range are counted as non-flying
 MIN_BOUT_DURATION = 0.5  # 0.25 # seconds. flying bouts must be at least this long
 ROLLING_WINDOW = 501  # size of rolling window for mic amplitude processing
 
@@ -61,7 +61,7 @@ EMG_HIGHCUT_POWER_DROSOPHILA = 10000  # 2000  # higher cutoff frequency for musc
 EMG_BTYPE_POWER = 'bandpass'  # butter filter type (bandpass or bandstop)
 EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
 EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
-THRESH_FACTORS_POWER = (3.5, 35)   # (1.5, 35)  # factors multiplied by thresh in spike peak detection
+THRESH_FACTORS_POWER = (1.5, 35)   # (1.5, 35)  # factors multiplied by thresh in spike peak detection
 
 # emg filter params - STEERING
 EMG_LOWCUT_STEER = 300  # 50
@@ -69,11 +69,11 @@ EMG_HIGHCUT_STEER = 10000
 EMG_BTYPE_STEER = 'bandpass'
 EMG_WINDOW_STEER = 32
 EMG_OFFSET_STEER = 4
-THRESH_FACTORS_STEER = (1.0, 8)
+THRESH_FACTORS_STEER = (0.75, 8)
 
 # general emg filter params
 NOTCH_Q = 2.0  # quality factor for iir notch filter
-MIN_SPIKE_DT = 0.0015  # in seconds
+MIN_SPIKE_DT = 0.0005  # 0.0015  # in seconds
 
 
 # ---------------------------------------
@@ -571,6 +571,26 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
                                  height=(min_height, max_height),
                                  distance=min_peak_dist)
 
+    # # visualize spike detection?
+    # if viz_flag:
+    #     # make figure window
+    #     fig, ax = plt.subplots(figsize=(11, 4))
+    #
+    #     # plot data
+    #     t = (1 / fs) * np.arange(emg.size)
+    #     ax.plot(t, emg)
+    #     ax.plot(t[peaks], emg[peaks], 'rx')
+    #     ax.axhline(min_height, color='k', ls='--')
+    #     ax.axhline(-1 * min_height, color='k', ls='--')
+    #
+    #     # label axes
+    #     ax.autoscale(enable=True, axis='x', tight=True)
+    #     ax.set_title('Spike threshold')
+    #     ax.set_ylabel('emg (V)')
+    #     ax.set_xlabel('time (s)')
+    #
+    #     plt.show()
+
     # extract window around detected peaks (+/- spike window)
     n_pts = emg.size
     spike_list = []
@@ -853,7 +873,7 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
 
     # determine periods of non-flight using mic data
     flying_idx = detect_flight_bouts(mic_filt, fs,
-                                     viz_flag=debug_flag)  # debug_flag
+                                     viz_flag=True)  # debug_flag
 
     # get wingbeat frequencies (both mean and per-timestep)
     if species == 'drosophila':
@@ -865,10 +885,11 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
         max_wbf = 900
 
     wbf_mean = get_wbf_mean(mic_filt, fs, wbf_est_high=max_wbf)
+    print(wbf_mean)
     wbf = get_wbf(mic_filt, fs,
                   nperseg=params['nperseg'],
                   max_wbf=max_wbf,
-                  viz_flag=debug_flag)  # debug_flag
+                  viz_flag=True)  # debug_flag
 
     # add newly calculated stuff to dict
     abf_dict['mic_filt'] = mic_filt
@@ -965,6 +986,7 @@ def save_processed_data(filename, abf_dict, file_type='pkl'):
 def load_processed_data(folder_id, axo_num,
                         root_path='/media/sam/SamData/Mosquitoes',
                         subfolder_str='*_{:04d}',
+                        data_suffix='processed',
                         ext='.pkl'):
     """
     Convenience function to LOAD dictionary containing processed abf data
@@ -975,6 +997,8 @@ def load_processed_data(folder_id, axo_num,
         axo_num: per-day index of data file
         root_path: parent folder containing set of experiment folders
         subfolder_str: format of folder name inside experiment_folder
+        data_suffix: string at the end of processed data file; used to look for
+            correct file type
         ext: extension for analysis file
 
     Returns: None
@@ -991,7 +1015,7 @@ def load_processed_data(folder_id, axo_num,
 
     # find path to data file, given info
     search_path = os.path.join(root_path, expr_folder, subfolder_str.format(axo_num))
-    search_results = glob.glob(os.path.join(search_path, '*{}'.format(ext)))
+    search_results = glob.glob(os.path.join(search_path, f'*{data_suffix}{ext}'))
 
     # check that we can find a unique matching file
     if len(search_results) != 1:
@@ -1012,8 +1036,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '33_20240626'  # '33_20240626'  # '32_20240625'
-    axo_num_list = [2]  # np.arange(9)
+    data_folder = '42_20240717'  # '33_20240626'  # '32_20240625'
+    axo_num_list = np.arange(1,5)
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,
@@ -1053,8 +1077,13 @@ if __name__ == "__main__":
                         line_text = line.rstrip()
 
                         # parse line into dict item
-                        key = line_text.split(':')[0]
-                        item = line_text.split(':')[1]
+                        line_text_split = line_text.split(':')
+                        key = line_text_split[0]
+                        if len(line_text_split) > 1:
+                            item = line_text.split(':')[1]
+                        else:
+                            item = None
+
                         readme_dict[key] = item
 
             # get species info. NB: we're going to assume aedes is default
