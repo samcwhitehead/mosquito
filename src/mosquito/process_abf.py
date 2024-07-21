@@ -885,7 +885,6 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
         max_wbf = 900
 
     wbf_mean = get_wbf_mean(mic_filt, fs, wbf_est_high=max_wbf)
-    print(wbf_mean)
     wbf = get_wbf(mic_filt, fs,
                   nperseg=params['nperseg'],
                   max_wbf=max_wbf,
@@ -1036,8 +1035,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '42_20240717'  # '33_20240626'  # '32_20240625'
-    axo_num_list = np.arange(1,5)
+    data_folder = '40_20240715'  # '33_20240626'  # '32_20240625'
+    axo_num_list = [8]
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,
