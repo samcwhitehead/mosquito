@@ -256,7 +256,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pexpect-4.9.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pickleshare-0.7.5-py_1003.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/linux-64/pillow-10.3.0-py312hdcec9eb_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/pixi-pycharm-0.0.5-unix_1234567_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/pixi-pycharm-0.0.6-unix_1234567_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/pixman-0.43.2-h59595ed_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pkgutil-resolve-name-1.3.10-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/platformdirs-4.2.1-pyhd8ed1ab_0.conda
@@ -582,7 +582,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pexpect-4.9.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pickleshare-0.7.5-py_1003.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/osx-64/pillow-10.3.0-py312h0c923fa_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/pixi-pycharm-0.0.5-unix_1234567_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/pixi-pycharm-0.0.6-unix_1234567_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/pixman-0.43.4-h73e2aa4_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pkgutil-resolve-name-1.3.10-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/platformdirs-4.2.1-pyhd8ed1ab_0.conda
@@ -883,7 +883,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pexpect-4.9.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pickleshare-0.7.5-py_1003.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/pillow-10.3.0-py312h8a801b1_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/pixi-pycharm-0.0.5-unix_1234567_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/pixi-pycharm-0.0.6-unix_1234567_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/pixman-0.43.4-hebf3989_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pkgutil-resolve-name-1.3.10-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/platformdirs-4.2.1-pyhd8ed1ab_0.conda
@@ -1176,7 +1176,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/pcre2-10.43-h17e33f8_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pickleshare-0.7.5-py_1003.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/win-64/pillow-10.3.0-py311h6819b35_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/pixi-pycharm-0.0.5-win_1234567_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/pixi-pycharm-0.0.6-win_1234567_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/pixman-0.43.4-h63175ca_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pkgutil-resolve-name-1.3.10-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/platformdirs-4.2.1-pyhd8ed1ab_0.conda
@@ -11098,7 +11098,7 @@ packages:
   name: mosquito
   version: 0.1.0
   path: .
-  sha256: d61a4088c7984931c356d869cc895f78023657ab4036731084ca05447e775fa7
+  sha256: 2eba0b00f008100e958db8a936fb72b7598c82db52d9d73b4aa9bdab6f7911ce
   requires_dist:
   - pyabf
   requires_python: '>=3.11'
@@ -12511,36 +12511,36 @@ packages:
   timestamp: 1712154634705
 - kind: conda
   name: pixi-pycharm
-  version: 0.0.5
+  version: 0.0.6
   build: unix_1234567_0
   subdir: noarch
   noarch: generic
-  url: https://conda.anaconda.org/conda-forge/noarch/pixi-pycharm-0.0.5-unix_1234567_0.conda
-  sha256: f33b5c5f7b87447080253093c5bdb6aa9790cc300d059674a557b1d9acba0361
-  md5: d204496f23fcb1a77076969caea2713e
+  url: https://conda.anaconda.org/conda-forge/noarch/pixi-pycharm-0.0.6-unix_1234567_0.conda
+  sha256: 156dd789a87ea8b6d7c329efbc202d7f21564d5afabbad9c6ac14017fb47c641
+  md5: c140222c6019ef59c509f4740663fa75
   depends:
   - __unix
   - python >=3.8
   license: BSD-3-Clause
   license_family: BSD
-  size: 8760
-  timestamp: 1713442614759
+  size: 8833
+  timestamp: 1719726313982
 - kind: conda
   name: pixi-pycharm
-  version: 0.0.5
+  version: 0.0.6
   build: win_1234567_0
   subdir: noarch
   noarch: generic
-  url: https://conda.anaconda.org/conda-forge/noarch/pixi-pycharm-0.0.5-win_1234567_0.conda
-  sha256: f26da817b2ffd67f1f55e5a9f8df47c299590780be2fdda8bf306daad92907bb
-  md5: c19b5868d9bc5f870ec5d9bee9bb91ad
+  url: https://conda.anaconda.org/conda-forge/noarch/pixi-pycharm-0.0.6-win_1234567_0.conda
+  sha256: 569f2a3c8b3680a1905dcd9c0ca05523c6ab4f2b4b720a7068d8267ad3ef70d8
+  md5: cb165db90fb6f09710c5a5fd81775bfa
   depends:
   - __win
   - python >=3.8
   license: BSD-3-Clause
   license_family: BSD
-  size: 8567
-  timestamp: 1713442613115
+  size: 8629
+  timestamp: 1719726272617
 - kind: conda
   name: pixman
   version: 0.43.2

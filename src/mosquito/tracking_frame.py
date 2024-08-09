@@ -7,6 +7,7 @@ TODO:
     - try to reduce redundancy in set_params/handles
 
 """
+
 # ---------------------------------------
 # IMPORTS
 # ---------------------------------------
@@ -150,9 +151,7 @@ class MyLine(object):
     Line class adapted from Kinefly
     """
 
-    def __init__(self, parent=None, children=[], name=None, color='white', params=default_params):
-        self.parent = parent
-        self.children = children
+    def __init__(self, name=None, color='white', params=default_params, followers=[]):
 
         self.name = name
 
@@ -165,6 +164,9 @@ class MyLine(object):
         end_pt = self.params[self.name]['end_pt']
         self.handles = {'start_pt': Handle(start_pt, bgra_dict['yellow'], name='start_pt'),
                         'end_pt': Handle(end_pt, bgra_dict['magenta'], name='end_pt')}
+
+        # followers refer to objects that should transform with this one
+        self.followers = followers
 
         # other variables
         self.mask = None  # these aren't used, but are present to keep class variables consistent
@@ -251,7 +253,7 @@ class MyLine(object):
 # CLASS TO DRAW AN ADJUSTABLE WEDGE (EG FOR WING TRACKING)
 # ------------------------------------------------------------------------------------------
 class MyWedge(object):
-    def __init__(self, parent=None, name=None, color='white', params=default_params):
+    def __init__(self, parent=None, name=None, color='white', params=default_params, followers=[]):
         self.parent = parent
 
         self.name = name
@@ -271,6 +273,9 @@ class MyWedge(object):
         # make fields for each of the handle points (why are they even separate?)
         for tag_handle, handle in self.handles.items():
             setattr(self, tag_handle, handle.pt)
+
+        # followers refer to objects that should transform with this one
+        self.followers = followers
 
         # other variables
         self.body_angle = None
@@ -617,6 +622,9 @@ class FlyFrame:
 
             # get mask of current region (if possible)
             self.current_part.get_mask(self.image_shape)
+
+            # update any objects that are tied to this one
+            followers = self.current_part.followers
 
     # draw all objects
     def draw(self, image):
