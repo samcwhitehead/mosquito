@@ -49,7 +49,7 @@ MIC_HIGHCUT_DROSOPHILA = 300   # higher cutoff frequency for mic bandpass filter
 NPERSEG = 16384  # length of window to use in short-time fourier transform for wbf estimate
 
 # flight bout detection (from mic signal)
-MIC_RANGE = (0.05, 8.5)  # (0.35, 6.5) volts. values outside this range are counted as non-flying
+MIC_RANGE = (0.35, 9.5)  # (0.05, 8.5)  # (0.35, 6.5) volts. values outside this range are counted as non-flying
 MIN_BOUT_DURATION = 0.5  # 0.25 # seconds. flying bouts must be at least this long
 ROLLING_WINDOW = 501  # size of rolling window for mic amplitude processing
 
@@ -64,16 +64,17 @@ EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
 THRESH_FACTORS_POWER = (1.5, 35)   # (1.5, 35)  # factors multiplied by thresh in spike peak detection
 
 # emg filter params - STEERING
-EMG_LOWCUT_STEER = 300  # 50
+EMG_LOWCUT_STEER = 700  # 300  # 700
+EMG_HIGHCUT_STEER = 10000
 EMG_HIGHCUT_STEER = 10000
 EMG_BTYPE_STEER = 'bandpass'
-EMG_WINDOW_STEER = 32
+EMG_WINDOW_STEER = 32  # 32
 EMG_OFFSET_STEER = 4
-THRESH_FACTORS_STEER = (0.65, 8)
+THRESH_FACTORS_STEER = (1.0, 4)   # (0.75, 4) # (0.35, 0.7)  # (0.65, 8)
 
 # general emg filter params
 NOTCH_Q = 2.0  # quality factor for iir notch filter
-MIN_SPIKE_DT = 0.0005  # 0.0005 # 0.0015  # in seconds
+MIN_SPIKE_DT = 0.00005  # 0.0005 # 0.0015  # in seconds
 
 
 # ---------------------------------------
@@ -571,26 +572,6 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
                                  height=(min_height, max_height),
                                  distance=min_peak_dist)
 
-    # # visualize spike detection?
-    # if viz_flag:
-    #     # make figure window
-    #     fig, ax = plt.subplots(figsize=(11, 4))
-    #
-    #     # plot data
-    #     t = (1 / fs) * np.arange(emg.size)
-    #     ax.plot(t, emg)
-    #     ax.plot(t[peaks], emg[peaks], 'rx')
-    #     ax.axhline(min_height, color='k', ls='--')
-    #     ax.axhline(-1 * min_height, color='k', ls='--')
-    #
-    #     # label axes
-    #     ax.autoscale(enable=True, axis='x', tight=True)
-    #     ax.set_title('Spike threshold')
-    #     ax.set_ylabel('emg (V)')
-    #     ax.set_xlabel('time (s)')
-    #
-    #     plt.show()
-
     # extract window around detected peaks (+/- spike window)
     n_pts = emg.size
     spike_list = []
@@ -601,10 +582,12 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
         # get range around current peak
         if (pk - window) < 0 or (pk + window) > n_pts:
             continue
-        spike_ind_init = range(pk - int(window/4), pk + int(window/4))
+        # spike_ind_init = range(pk - int(window/4), pk + int(window/4))
+        spike_ind_init = range(pk - int(window), pk + int(window))
 
         # recenter to max value
         pk_new = spike_ind_init[np.argmax(emg[spike_ind_init])]
+        # pk_new = spike_ind_init[np.argmin(emg[spike_ind_init])]
         if (pk_new == spike_ind_init[0]) or (pk_new == spike_ind_init[-1]):
             # if our recentering takes us to the edge of the window, we're probably not on a peak
             continue
@@ -1000,7 +983,7 @@ def load_processed_data(folder_id, axo_num,
             correct file type
         ext: extension for analysis file
 
-    Returns: None
+    Returns: data, the dictionary containg processed data
     """
     # check input type -- if it's a two-digit number, search for folder
     if str(folder_id).isnumeric():
@@ -1024,6 +1007,7 @@ def load_processed_data(folder_id, axo_num,
 
     # load pickled data file
     data = pickle.load(open(data_path_full, "rb"))
+    data['filepath_load'] = data_path_full  # add the full filepath that this was just loaded from
 
     return data
 
@@ -1035,8 +1019,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '44_20240722'  # '33_20240626'  # '32_20240625'
-    axo_num_list = np.arange(14, 19)
+    data_folder = '50_20240816'  # '33_20240626'  # '32_20240625'
+    axo_num_list = [27]  # np.arange(30, 34)
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,

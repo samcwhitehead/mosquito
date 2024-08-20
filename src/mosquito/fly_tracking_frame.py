@@ -40,15 +40,15 @@ default_params = dict(
         start_pt=np.array([80, 230]),
         end_pt=np.array([332, 506])
     ),
-    right_wing=dict(
-        hinge_pt=np.array([250, 375]),
+    left_wing=dict(
+        hinge_pt=np.array([300, 40+315]),  # np.array([0, 40]),
         radius_inner=80,
         radius_outer=120,
         angle_hi=2.3562,
         angle_lo=0.7854,
     ),
-    left_wing=dict(
-        hinge_pt=np.array([250, 200]),
+    right_wing=dict(
+        hinge_pt=np.array([300, -40+315]),  # np.array([0, -40]),
         radius_inner=80,
         radius_outer=120,
         angle_hi=-0.7854,
@@ -92,6 +92,17 @@ def mat_from_angle_and_trans(angle, translation):
     return mat
 
 
+def apply_transform(pt, transform):
+    """
+    Convenience function to apply a 2D affine transformation matrix to a point
+    and return the result (saves me from having to mess with homogeneous
+    coordinates in main code
+
+    """
+    pt_homo = np.pad(pt, (0, 1), 'constant', constant_values=(0, 1))
+    return (transform @ pt_homo)[:2]
+
+
 def cart2pol(x):
     """
     Convenience function for cartesian to polar coordinates
@@ -109,6 +120,20 @@ def pol2cart(rho, phi):
     y = rho * np.sin(phi)
     return np.array([x, y])
 
+
+def get_body_angle(start_pt, end_pt):
+    """
+    Convenience function to calculate body angle
+    (makes sure I'm always doing it the same way)
+
+    thorax = start_pt
+    head = end_pt
+    """
+    theta_b = get_angle_from_points(start_pt, end_pt)
+    # unwrap to [0, 2*pi]
+    if theta_b < 0:
+        theta_b += 2*np.pi
+    return theta_b
 
 # ---------------------------------------
 # UI CLASSES
@@ -171,16 +196,6 @@ class MyLine(object):
         # other variables
         self.mask = None  # these aren't used, but are present to keep class variables consistent
         self.roi = None
-
-    # set parameters
-    def set_params(self, params):
-        self.params = params
-
-        # # update transformation matrices
-        # self.parent2self = self.parent_to_self_transform()
-
-        # update the values of handle points start_pt and end_pt
-        self.update_handles_from_params()
 
     # update handle points
     def update_handles_from_params(self):
@@ -270,10 +285,6 @@ class MyWedge(object):
                         'angle_lo': Handle(np.array([0, 0]), self.color_bgra, name='angle_lo'),
                         'radius_inner': Handle(np.array([0, 0]), self.color_bgra, name='radius_inner')}
 
-        # make fields for each of the handle points (why are they even separate?)
-        for tag_handle, handle in self.handles.items():
-            setattr(self, tag_handle, handle.pt)
-
         # followers refer to objects that should transform with this one
         self.followers = followers
 
@@ -281,7 +292,9 @@ class MyWedge(object):
         self.body_angle = None
         self.angle_hi_i = None
         self.angle_lo_i = None
-        self.set_hi_lo_angles()
+        self.parent2self = None
+        self.self2parent = None
+        self.update_hi_lo_angles()
 
         self.pt_wedge_hi_outer = None  # these are the points to draw lines bounding the wedge
         self.pt_wedge_hi_inner = None
@@ -294,17 +307,8 @@ class MyWedge(object):
         # do initial handle update
         self.update_handles_from_params()
 
-    def set_params(self, params):
-        self.params = params
-
-        # get global (image) coordinate system values for high and low angle
-        self.set_hi_lo_angles()
-
-        # Will need stuff here about how to extract relative angles here
-        self.update_handles_from_params()
-
-    def set_hi_lo_angles(self):
-        self.body_angle = self.get_body_angle()
+    def update_hi_lo_angles(self):
+        self.update_body_angle()
         self.angle_hi_i = self.params[self.name]['angle_hi']  # - self.body_angle
         self.angle_lo_i = self.params[self.name]['angle_lo']  # - self.body_angle
 
@@ -317,6 +321,9 @@ class MyWedge(object):
         angle_hi_i = self.angle_hi_i
         angle_lo_i = self.angle_lo_i
 
+        # # TEMP transform wedge points to image frame
+        # hinge_pt = apply_transform(hinge_pt, self.self2parent)
+
         # set wedge points
         self.pt_wedge_hi_outer = hinge_pt + (radius_outer * np.array([np.cos(angle_hi_i), np.sin(angle_hi_i)]))
         self.pt_wedge_hi_inner = hinge_pt + (radius_inner * np.array([np.cos(angle_hi_i), np.sin(angle_hi_i)]))
@@ -328,10 +335,13 @@ class MyWedge(object):
         hinge_pt = self.params[self.name]['hinge_pt']
         radius_outer = self.params[self.name]['radius_outer']
         radius_inner = self.params[self.name]['radius_inner']
-        self.set_hi_lo_angles()
+        # self.update_hi_lo_angles()
         angle_hi_i = self.angle_hi_i
         angle_lo_i = self.angle_lo_i
         angle = (angle_hi_i + angle_lo_i) / 2.0
+
+        # # TEMP convert to image frame
+        # hinge_pt = apply_transform(hinge_pt, self.self2parent)
 
         self.handles['hinge_pt'].pt = hinge_pt
         self.handles['radius_inner'].pt = hinge_pt + (radius_inner * np.array([np.cos(angle), np.sin(angle)]))
@@ -345,25 +355,31 @@ class MyWedge(object):
         # read out current copy of params
         params = self.params
 
+        # get angle of longitudinal body axis in plane
+        self.update_body_angle()
+
         # get current values of handle points
         hinge_pt = self.handles['hinge_pt'].pt
         radius_inner_pt = self.handles['radius_inner'].pt
         angle_hi_pt = self.handles['angle_hi'].pt
         angle_lo_pt = self.handles['angle_lo'].pt
 
-        # get angle of longitudinal body axis in plane
-        self.body_angle = self.get_body_angle()
+        # # TEMP transform to body frame
+        # hinge_pt = apply_transform(hinge_pt, self.parent2self)  # TEMP go image to body frame
+        # radius_inner_pt = apply_transform(radius_inner_pt, self.parent2self)  # TEMP go image to body frame
+        # angle_hi_pt = apply_transform(angle_hi_pt, self.parent2self)  # TEMP go image to body frame
+        # angle_lo_pt = apply_transform(angle_lo_pt, self.parent2self)  # TEMP go image to body frame
 
         # use these to define the param values
         params[self.name]['hinge_pt'] = hinge_pt
         params[self.name]['radius_inner'] = np.linalg.norm(radius_inner_pt - hinge_pt)
         params[self.name]['radius_outer'] = np.linalg.norm(angle_hi_pt - hinge_pt)
-        params[self.name]['angle_hi'] = get_angle_from_points(hinge_pt, angle_hi_pt)  # - self.body_angle
-        params[self.name]['angle_lo'] = get_angle_from_points(hinge_pt, angle_lo_pt)  # - self.body_angle
+        params[self.name]['angle_hi'] = get_angle_from_points(hinge_pt, angle_hi_pt)  #  - self.body_angle
+        params[self.name]['angle_lo'] = get_angle_from_points(hinge_pt, angle_lo_pt)  #  - self.body_angle
 
         # set parameters
         self.params = params
-        self.set_hi_lo_angles()
+        self.update_hi_lo_angles()
 
         # also update wedge boundary lines
         self.update_wedge_points_from_params()
@@ -427,10 +443,14 @@ class MyWedge(object):
                 self.handles[angle_tag].pt = pol2cart(rho, theta) + self.handles['hinge_pt'].pt
 
     # get body axis angle
-    def get_body_angle(self):
-        head_pt = self.params['body_axis']['end_pt']
-        thorax_pt = self.params['body_axis']['start_pt']
-        return get_angle_from_points(head_pt, thorax_pt)
+    def update_body_angle(self):
+        start_pt = self.params['body_axis']['start_pt']  # thorax
+        end_pt = self.params['body_axis']['end_pt']  # head
+        self.body_angle = get_body_angle(start_pt, end_pt)  # + np.pi
+
+        # also get transformation (TEMP leaving out translation for now)
+        self.parent2self = mat_from_angle_and_trans(-1*self.body_angle, -1*start_pt)
+        self.self2parent = mat_from_angle_and_trans(self.body_angle, start_pt)
 
     # Get a mask corresponding to the wedge region
     def get_mask(self, image_shape):
@@ -439,6 +459,7 @@ class MyWedge(object):
 
         # read out values for handle points
         hinge_pt = self.params[self.name]['hinge_pt'].astype('int')
+        # hinge_pt = apply_transform(hinge_pt, self.parent2self)  # TEMP
         radius_outer = int(self.params[self.name]['radius_outer'])
         radius_inner = int(self.params[self.name]['radius_inner'])
         angle_hi = np.rad2deg(self.angle_hi_i)
@@ -499,6 +520,12 @@ class MyWedge(object):
 
         # read out values for drawing
         hinge_pt = self.params[self.name]['hinge_pt'].astype('int')
+
+        # # TEMP
+        # hinge_pt = self.params[self.name]['hinge_pt']
+        # hinge_pt = apply_transform(hinge_pt, self.self2parent).astype('int')
+        # # print(hinge_pt)
+
         radius_outer = int(self.params[self.name]['radius_outer'])
         radius_inner = int(self.params[self.name]['radius_inner'])
         radius_mid = int((radius_outer + radius_inner)/2)
@@ -549,20 +576,14 @@ class FlyFrame:
         # read out name
         self.name = name
 
-        # create an image window instance
-        cv2.namedWindow(self.name, cv2.WINDOW_NORMAL)
-
         # set params
         self.params = params
 
         # generate a set of objects
-        self.body_axis = MyLine(name='body_axis', params=self.params)
+        self.body_axis = MyLine(name='body_axis', params=self.params, followers=['right_wing', 'left_wing'])
         self.right_wing = MyWedge(name='right_wing', params=self.params, color='red')
         self.left_wing = MyWedge(name='left_wing', params=self.params, color='green')
         self.partnames = ['body_axis', 'right_wing', 'left_wing']
-
-        # set mouse callback
-        cv2.setMouseCallback(self.name, self.on_mouse)
 
         # values for current state of system
         self.mousing = False
@@ -573,6 +594,12 @@ class FlyFrame:
         # current image in system
         image = np.zeros((640, 640, 3), dtype='uint8')
         self.image_shape = image.shape[:2][::-1]
+
+    # convenience function to get long body axis angle
+    def get_body_angle(self):
+        start_pt = self.params['body_axis']['start_pt']
+        end_pt = self.params['body_axis']['end_pt']
+        return get_body_angle(start_pt, end_pt)
 
     # which object is being clicked on
     def hit_object(self, pt_mouse):
@@ -625,6 +652,9 @@ class FlyFrame:
 
             # update any objects that are tied to this one
             followers = self.current_part.followers
+            for follower in followers:
+                follower_part = getattr(self, follower)
+                follower_part.update_handles_from_params()
 
     # draw all objects
     def draw(self, image):
@@ -633,6 +663,13 @@ class FlyFrame:
 
     # run main window with a single image (for testing)
     def run_fake(self):
+        # create an image window instance
+        cv2.namedWindow(self.name, cv2.WINDOW_NORMAL)
+
+        # set mouse callback
+        cv2.setMouseCallback(self.name, self.on_mouse)
+
+        # make a fake image
         image = np.zeros((640, 640, 3), dtype='uint8')
         while True:
             clone = image.copy()
@@ -647,6 +684,12 @@ class FlyFrame:
 
     # run main window with a video capture object (cap)
     def run_video(self, cap):
+        # create an image window instance
+        cv2.namedWindow(self.name, cv2.WINDOW_NORMAL)
+
+        # set mouse callback
+        cv2.setMouseCallback(self.name, self.on_mouse)
+
         while True:
             # read next frame
             ret, frame = cap.read()
@@ -680,8 +723,10 @@ if __name__ == "__main__":
     # main_window.run_fake()
 
     # test on video
-    vid_path = ('/media/sam/SamData/Mosquitoes/46_20240724/2024_07_24_0000/aedes_C001H001S0001_20240724_114750/' +
-                'aedes_C001H001S0001_20240724_114750.avi')
+    # vid_path = ('/media/sam/SamData/Mosquitoes/46_20240724/2024_07_24_0000/aedes_C001H001S0001_20240724_114750/' +
+    #             'aedes_C001H001S0001_20240724_114750.avi')
+    vid_path = ('/media/sam/SamData/Mosquitoes/48_20240813/other_vid/aedes_C001H001S0001_20240813_153233/' +
+                'aedes_C001H001S0001_20240813_153233.avi')
     cap = cv2.VideoCapture(vid_path)
     fly_frame.run_video(cap)
 

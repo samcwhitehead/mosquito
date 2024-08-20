@@ -25,7 +25,6 @@ def idx_by_thresh(sig, thresh=0.1):
     try:
         split_idxs = np.squeeze(np.argwhere(np.diff(idxs) > 1))
     except IndexError:
-        # print 'IndexError'
         return None
     # split_idxs = [split_idxs]
     if split_idxs.ndim == 0:

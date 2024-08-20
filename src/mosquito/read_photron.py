@@ -102,6 +102,7 @@ def contrast_adjust_imgs(imgs_in, out_range=(0, 4095)):
 
     return imgs_out
 
+
 # ----------------------------------------------------------------------------------
 def my_read_cih(filename):
     """
