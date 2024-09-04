@@ -21,7 +21,7 @@ from pySciCam.pySciCam import ImageSequence
 #########################################################################################
 ######################## PARAMS/CONSTANTS ###############################################
 #########################################################################################
-SUPPORTED_FILE_FORMATS = ['mraw', 'tiff']
+SUPPORTED_FILE_FORMATS = ['mraw', 'tiff', 'avi']
 SUPPORTED_EFFECTIVE_BIT_SIDE = ['lower', 'higher']
 
 MERGED_FPS = 50

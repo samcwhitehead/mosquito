@@ -36,10 +36,6 @@ default_params = dict(
         start_pt=np.array([400, 320]),
         end_pt=np.array([80, 320])
     ),
-    line_test=dict(
-        start_pt=np.array([80, 230]),
-        end_pt=np.array([332, 506])
-    ),
     left_wing=dict(
         hinge_pt=np.array([300, 40+315]),  # np.array([0, 40]),
         radius_inner=80,
@@ -135,10 +131,10 @@ def get_body_angle(start_pt, end_pt):
         theta_b += 2*np.pi
     return theta_b
 
+
 # ---------------------------------------
 # UI CLASSES
 # ---------------------------------------
-
 # ------------------------------------------------------------------------------------------
 # CLASS TO CREATE A MOVABLE POINT HANDLE (FROM KINEFLY)
 # ------------------------------------------------------------------------------------------
@@ -572,28 +568,34 @@ class MyWedge(object):
 # CLASS FOR A COMPILED FLY FRAME TO ALLOW MULTIPLE BODY PART TRACKING
 # ------------------------------------------------------------------------------------------
 class FlyFrame:
-    def __init__(self, name='fly frame', params=default_params):
-        # read out name
-        self.name = name
+    def __init__(self, name='fly frame', params=default_params, init_dict=None):
+        # want to have the option to initialize from an existing fly_frame, which we'll
+        # typically save as a dict (fly_frame.__dict__). otherwise, use defaults
+        if init_dict is not None:
+            self.__dict__ = init_dict
 
-        # set params
-        self.params = params
+        else:
+            # read out name
+            self.name = name
 
-        # generate a set of objects
-        self.body_axis = MyLine(name='body_axis', params=self.params, followers=['right_wing', 'left_wing'])
-        self.right_wing = MyWedge(name='right_wing', params=self.params, color='red')
-        self.left_wing = MyWedge(name='left_wing', params=self.params, color='green')
-        self.partnames = ['body_axis', 'right_wing', 'left_wing']
+            # set params
+            self.params = params
 
-        # values for current state of system
-        self.mousing = False
-        self.current_tag = None
-        self.current_partname = None
-        self.current_part = None
+            # generate a set of objects
+            self.body_axis = MyLine(name='body_axis', params=self.params,
+                                    followers=['right_wing', 'left_wing'])
+            self.right_wing = MyWedge(name='right_wing', params=self.params, color='red')
+            self.left_wing = MyWedge(name='left_wing', params=self.params, color='green')
+            self.partnames = ['body_axis', 'right_wing', 'left_wing']
 
-        # current image in system
-        image = np.zeros((640, 640, 3), dtype='uint8')
-        self.image_shape = image.shape[:2][::-1]
+            # values for current state of system
+            self.mousing = False
+            self.current_tag = None
+            self.current_partname = None
+            self.current_part = None
+
+            # current image in system
+            self.image_shape = (640, 640)  # NB: image shape needs to be in reverse order from np arrays
 
     # convenience function to get long body axis angle
     def get_body_angle(self):
@@ -655,6 +657,11 @@ class FlyFrame:
             for follower in followers:
                 follower_part = getattr(self, follower)
                 follower_part.update_handles_from_params()
+
+    # update all masks
+    def update_masks(self):
+        for partname in self.partnames:
+            getattr(self, partname).get_mask(self.image_shape)
 
     # draw all objects
     def draw(self, image):

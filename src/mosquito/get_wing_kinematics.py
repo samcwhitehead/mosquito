@@ -2,12 +2,11 @@
 Code to analyze high-speed and regular video of mosquitoes.
 
  TODO:
-   - put angles in body coordinates (separate function?)
-   - assign leading/trailing edge. This can be done with minima of wing angle diff for high speed
-        but we also want it for low speed since wings don't go all the way back
-   - check if any other high speed functions needed
-   - I should be able to write this so it processes images serially. The only issue now is the way we're calculating
-     bg, so just need to write a rolling median estimator (should be easy)
+   - filtering/interpolating nan values in kinematics
+   - merge run_track_video and run_track_video_cap -- redundant!
+   - better processing for low-speed tracking (currently trying
+        to pre-process videos in a Jupyter notebook called
+        my_downsample_video.ipynb
 
 """
 # ---------------------------------------
@@ -15,15 +14,17 @@ Code to analyze high-speed and regular video of mosquitoes.
 # ---------------------------------------
 import os
 import glob
+from tabnanny import verbose
+
 import cv2
 
 import numpy as np
 import matplotlib.pyplot as plt
-from IPython.core.pylabtools import figsize
+from numpy.core.records import record
 
-from scipy.interpolate import interp1d
+from scipy.interpolate import UnivariateSpline
+from scipy.signal import find_peaks
 
-from skimage.color import rgb2gray
 from skimage.exposure import equalize_adapthist, rescale_intensity
 from skimage.filters import gaussian, threshold_multiotsu
 from skimage.feature import canny
@@ -35,12 +36,12 @@ from skimage.util import invert, compare_images, img_as_float
 
 try:
     from kindafly import FlyFrame, get_angle_from_points, get_body_angle
-    from read_photron import my_read_mraw
+    from read_photron import my_read_mraw, my_read_cih
     from util import idx_by_thresh
     from process_abf import load_processed_data, save_processed_data
 except ModuleNotFoundError:
     from .kindafly import FlyFrame, get_angle_from_points, get_body_angle
-    from .read_photron import my_read_mraw
+    from .read_photron import my_read_mraw, my_read_cih
     from .util import idx_by_thresh
     from .process_abf import load_processed_data, save_processed_data
 
@@ -52,21 +53,40 @@ except ModuleNotFoundError:
 # 'amplitude'. this dict is meant to keep that correspondence stored
 WING_VAR_DICT = {
     'right_amp': 'angles_min',
-    'left_amp': 'angles_max'
+    'left_amp': 'angles_max',
+    'right_lead': 'angles_lead',
+    'right_trail': 'angles_trail',
+    'left_lead': 'angles_lead',
+    'left_trail': 'angles_trail'
 }
 
+# related to above, this gives a list of variables (in the form '{wing_side}_{var}') that
+# we try to align to axo data. note that they don't all have to be there, because we check
+WING_VARS = ['amp', 'lead', 'trail']
+
 # parameters for edge detection
-BG_WINDOW = 10  # take this many frames on either side of an image to get background estimate
+BG_WINDOW = 20  # 10  # take this many frames on either side of an image to get background estimate
 CANNY_SIGMA = 3.0  # size of gaussian filter used prior to Canny edge detection
-MIN_EDGE_AREA = 10  # minimum size for edges detected in wing wedges
+MIN_EDGE_AREA = 15 # minimum size for edges detected in wing wedges
+
+# parameters for assigning leading vs trailing edge in high-speed video
+MIN_HEIGHT_PRCTILE = 65
+MIN_PROMINENCE_FACTOR = 0.1
+
+# assumed multiple of fps at which camera sends sync signal to axo
+SYNC_OUTPUT_RATE_DEFAULT = 0.5
+
+# parameters for interpolating aligned wing kinematics
+SMOOTH_FACTOR = 1
 
 
 # ---------------------------------------
 # HELPER FUNCTIONS
 # ---------------------------------------
+# --------------------------------------------------------------------------------------
 def load_video_data(folder_id, axo_num, root_path='/media/sam/SamData/Mosquitoes',
                     subfolder_str='*_{:04d}', frame_range=None, exts=['.mraw', '.avi'],
-                    data_suffix='', return_cap_flag=False):
+                    data_suffix='', return_cap_flag=False, just_return_fps_flag=False):
     """
     Convenience function for loading video data
 
@@ -82,6 +102,9 @@ def load_video_data(folder_id, axo_num, root_path='/media/sam/SamData/Mosquitoes
         data_suffix: filename suffix to look for when finding video
         return_cap_flag: bool, hacky way to have the function return an OpenCV
             VideoCapture output when possible
+        just_return_fps_flag: bool, hacky way of getting this function to only
+            return frame rate (in fps) sometimes so we can determine how to
+            proceed with analysis
 
     Returns:
         images: an array of video frames
@@ -105,20 +128,49 @@ def load_video_data(folder_id, axo_num, root_path='/media/sam/SamData/Mosquitoes
         search_results += glob.glob(os.path.join(search_path, f'*/*{data_suffix}{ext}'))
 
     # check that we can find a unique matching file
-    if len(search_results) != 1:
+    if (len(search_results) > 1) and (data_suffix == ''):
+        # this is hacky, but because the original video files have no suffix, we can
+        # return multiple files if we're not careful. here, account for that using the
+        # fact that anything with a suffix (i.e. '_{word}' at end of filename) will
+        # come after the original file alphabetically
+        search_results = sorted(search_results)
+    elif len(search_results) == 1:
+        pass
+    else:
         raise ValueError('Could not locate file in {}'.format(search_path))
 
     data_path_full = search_results[0]
 
-    # load video frames
+    # get extension of search hit
     _, final_ext = os.path.splitext(data_path_full)
 
+    # before loading frames, see if we can get recording frame rate from .cih file
+    data_path_folder, _ = os.path.split(data_path_full)
+    cih_results = glob.glob(os.path.join(data_path_folder, '*.cih*'))
+    if len(cih_results) == 1:
+        cih = my_read_cih(cih_results[0])
+        record_fps = cih['Record Rate(fps)']
+    else:
+        print('WARNING: could not determine video frame rate')
+        record_fps = None
+
+    # return only the video frame rate?
+    if just_return_fps_flag:
+        return None, {'record_fps': record_fps, 'filepath': data_path_full}
+
+    # load video frames
     if final_ext == '.mraw':
         # if in photron raw format, read using pySciCam
         images_gray, metadata = my_read_mraw(data_path_full, frames=frame_range)
 
-        # add filepath to metadata
+        # add filepath and record fps to metadata
         metadata['filepath'] = data_path_full
+        metadata['record_fps'] = record_fps
+
+        # should we return a video capture object?
+        if return_cap_flag:
+            cap = ArrayVideoCapture(images_gray)
+            return cap, metadata
 
     elif final_ext == '.avi':
         # if in avi format, read using OpenCV
@@ -126,7 +178,8 @@ def load_video_data(folder_id, axo_num, root_path='/media/sam/SamData/Mosquitoes
         cap = cv2.VideoCapture(data_path_full)
 
         # make a simple metadata dict here (should update to match Photron one...)
-        metadata = {'fps': cap.get(cv2.CAP_PROP_FPS),
+        metadata = {'playback_fps': cap.get(cv2.CAP_PROP_FPS),
+                    'record_fps': record_fps,
                     'n_frames': int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
                     'filepath': data_path_full}
 
@@ -142,7 +195,7 @@ def load_video_data(folder_id, axo_num, root_path='/media/sam/SamData/Mosquitoes
         # get data type for frame
         ret, frame_test = cap.read()
         if frame_test.dtype == 'uint16':
-            scale = 1/256
+            scale = 1 / 256
         else:
             scale = 1
         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # reset frame counter
@@ -162,7 +215,7 @@ def load_video_data(folder_id, axo_num, root_path='/media/sam/SamData/Mosquitoes
         for ith in range(n_frames):
             ret, frame = cap.read()
             if ret:
-                images[ith] = scale*frame
+                images[ith] = scale * frame
 
         # release video capture
         cap.release()
@@ -171,58 +224,7 @@ def load_video_data(folder_id, axo_num, root_path='/media/sam/SamData/Mosquitoes
 
 
 # --------------------------------------------------------------------------------------
-def initialize_wing_data(fly_frame, wing_sides=['right', 'left']):
-    """
-    Convenience function to begin generating a wing_data dictionary, the output of
-    wing tracking
-
-    Writing this because it looks like I may need different versions for the tracking
-    code, and so having function calls will help keep versions consistent
-
-    Args:
-        fly_frame: FlyFrame object from kindafly.py
-        wing_sides: list of sides of wings to analyze
-
-    Returns:
-        wing_data: dict containing fly frame info and (eventually) tracked kinematics
-    """
-    # create dictionary
-    wing_data = dict()
-
-    # loop over wing sides (right, left) and fill
-    for wing_side in wing_sides:
-        # dictionary per side
-        wing_data[wing_side] = dict()
-
-        # empty lists for storage
-        wing_data[wing_side]['angles_max'] = list()
-        wing_data[wing_side]['angles_min'] = list()
-
-        # hinge
-        wing_data[wing_side]['hinge_pt'] = fly_frame.params[f'{wing_side}_wing']['hinge_pt']  # hinge point
-
-        # roi
-        roi = getattr(fly_frame, f'{wing_side}_wing').roi  # roi
-        wing_data[wing_side]['roi'] = roi
-
-        # mask
-        mask = getattr(fly_frame, f'{wing_side}_wing').mask  # mask
-        mask = (mask > 0)
-        wing_data[wing_side]['mask'] = mask
-        wing_data[wing_side]['mask_crop'] = mask[roi[1]:roi[3], roi[0]:roi[2]]
-
-        # radii
-        radius_inner = fly_frame.params[f'{wing_side}_wing']['radius_inner']  # radii of ROI
-        radius_outer = fly_frame.params[f'{wing_side}_wing']['radius_outer']
-        wing_data[wing_side]['radius_inner'] = radius_inner
-        wing_data[wing_side]['radius_outer'] = radius_outer
-        wing_data[wing_side]['radius_avg'] = (radius_inner + radius_outer) / 2.0
-
-    return wing_data
-
-
-# --------------------------------------------------------------------------------------
-def angle_to_stroke(wing_angle, wing_side, body_angle):
+def image_to_stroke_angle(wing_angle, wing_side, body_angle):
     """
     Convenience function for converting wing angle from image coordinates--measured
     clockwise relative to positive x-axis and in the (-pi, pi) range--to "stroke angle"
@@ -247,13 +249,48 @@ def angle_to_stroke(wing_angle, wing_side, body_angle):
 
     # unwrap to [0, 2*pi] range
     wing_stroke = np.asarray(wing_angle.copy())
-    wing_stroke[wing_stroke < 0] += 2*np.pi
+    wing_stroke[wing_stroke < 0] += 2 * np.pi
 
     # convert to angle relative to body axis (measuring from body axis normal)
     # NB: there HAS to be a smarter way to do this
-    wing_stroke = np.pi/2 + wing_sign*(wing_stroke - body_angle)
+    wing_stroke = np.pi / 2 + wing_sign * (wing_stroke - body_angle)
 
     return wing_stroke
+
+
+# --------------------------------------------------------------------------------------
+def stroke_to_image_angle(wing_stroke, wing_side, body_angle):
+    """
+    Convenience function for converting wing "stroke angle" to image coordinates
+    (measured clockwise relative to positive x-axis and in the (-pi, pi) range)
+
+    Here, stroke angle is measured relative to the line perpendicular to the body axis,
+    with positive numbers going towards the head and negative going towards tail
+
+    Args:
+        wing_stroke: array of wing "stroke angles"
+        wing_side: string giving which wing side we're on (e.g. 'right')
+        body_angle: angle of fly's long body axis, measured in image frame
+
+    Returns:
+        wing_angle: array of wing angles measured in image frame
+
+    """
+    # have to include a sign swap for right side to keep positive going to head
+    if wing_side == 'right':
+        wing_sign = -1
+    else:
+        wing_sign = 1
+
+    # unwrap to [0, 2*pi] range
+    wing_angle = np.asarray(wing_stroke.copy())
+    wing_angle[wing_angle > np.pi] -= 2 * np.pi
+
+    # convert to image frame angle
+    # NB: there HAS to be a smarter way to do this
+    wing_angle = wing_sign*(wing_angle - np.pi/2) + body_angle
+
+    return wing_angle
 
 
 # --------------------------------------------------------------------------------------
@@ -330,7 +367,7 @@ def get_wing_imgs(imgs_fg, window_size=20, open_rad=1, close_rad=10,
     for ith in range(imgs_fg.shape[0]):
         # fixed pixels are just present in all images
         idx1 = max([0, ith - window_size])
-        idx2 = min([imgs.shape[0] - 1, ith + window_size])
+        idx2 = min([imgs_fg.shape[0] - 1, ith + window_size])
         fixed = np.all(imgs_fg[idx1:idx2], axis=0)
 
         # to get moving pixels, do some extra processing
@@ -357,6 +394,60 @@ def get_wing_imgs(imgs_fg, window_size=20, open_rad=1, close_rad=10,
         cv2.destroyAllWindows()
 
     return imgs_moving, imgs_fixed
+
+
+# --------------------------------------------------------------------------------------
+def initialize_wing_data(fly_frame, wing_sides=['right', 'left']):
+    """
+    Convenience function to begin generating a wing_data dictionary, the output of
+    wing tracking
+
+    Writing this because it looks like I may need different versions for the tracking
+    code, and so having function calls will help keep versions consistent
+
+    Args:
+        fly_frame: FlyFrame object from kindafly.py
+        wing_sides: list of sides of wings to analyze
+
+    Returns:
+        wing_data: dict containing fly frame info and (eventually) tracked kinematics
+    """
+    # create dictionary
+    wing_data = dict()
+
+    # make sure that fly_frame has updated masks and rois
+    fly_frame.update_masks()
+
+    # loop over wing sides (right, left) and fill
+    for wing_side in wing_sides:
+        # dictionary per side
+        wing_data[wing_side] = dict()
+
+        # empty lists for storage
+        wing_data[wing_side]['angles_max'] = list()
+        wing_data[wing_side]['angles_min'] = list()
+
+        # hinge
+        wing_data[wing_side]['hinge_pt'] = fly_frame.params[f'{wing_side}_wing']['hinge_pt']  # hinge point
+
+        # roi
+        roi = getattr(fly_frame, f'{wing_side}_wing').roi  # roi
+        wing_data[wing_side]['roi'] = roi
+
+        # mask
+        mask = getattr(fly_frame, f'{wing_side}_wing').mask  # mask
+        mask = (mask > 0)
+        wing_data[wing_side]['mask'] = mask
+        wing_data[wing_side]['mask_crop'] = mask[roi[1]:roi[3], roi[0]:roi[2]]
+
+        # radii
+        radius_inner = fly_frame.params[f'{wing_side}_wing']['radius_inner']  # radii of ROI
+        radius_outer = fly_frame.params[f'{wing_side}_wing']['radius_outer']
+        wing_data[wing_side]['radius_inner'] = radius_inner
+        wing_data[wing_side]['radius_outer'] = radius_outer
+        wing_data[wing_side]['radius_avg'] = (radius_inner + radius_outer) / 2.0
+
+    return wing_data
 
 
 # --------------------------------------------------------------------------------------
@@ -443,144 +534,9 @@ def get_wing_edges_roi(im_clip, mask_clip, hinge_pt, roi, canny_sigma=CANNY_SIGM
 
 
 # ------------------------------------------------------------------------------------------
-def track_low_speed_video(imgs, fly_frame=None, wing_sides=['right', 'left'],
-                          body_angle=None, bg_window=BG_WINDOW, canny_sigma=CANNY_SIGMA,
-                          min_area=MIN_EDGE_AREA, extra_process_flag=True, viz_flag=False):
-    """
-    Function to run wing tracking on a "low-speed" video (~250 fps)
-
-    Args:
-        imgs: array of video images, where dimension 0 is the frame number and the
-            final dimension is color, if using color images.
-        fly_frame: instance of FlyFrame object giving fly reference frame, ROIs,
-            masks, etc. See kindafly.py. If None, manually do it here
-        wing_sides: names for the wings to track. Adding this as an input to allow
-            single wing tracking
-        body_angle: angle of the longitudinal body axis as measured in the image frame,
-            clockwise from the positive x axis
-        bg_window: size of one side of the rolling window used to estimate the background
-        canny_sigma: size of gaussian filter to use prior to Canny edge detection
-        min_area: smallest allowable area for putative edges detected via Canny method
-        extra_process_flag: bool, do some extra contrast enhancement on image?
-        viz_flag: bool, visualize tracking output?
-
-    Returns:
-        wing_data: dictionary containing output of wing tracking
-
-
-    Notes:
-        Previously had bg_window=10
-    """
-    # convert images to grayscale if need b
-    if (len(imgs.shape) > 3) and (imgs.shape[-1] == 3):
-        # imgs_gray = rgb2gray(imgs)
-        imgs_gray = np.stack([cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) for im in imgs])
-    else:
-        imgs_gray = imgs
-
-    # if we don't have a manually drawn reference frame already, get one
-    if fly_frame is None:
-        # initialize fly frame
-        fly_frame = FlyFrame()
-
-        # get reference frame
-        cap = ArrayVideoCapture(imgs.copy())
-        fly_frame.run_video(cap)
-        cap.release()
-
-    # initializing storage for wing data
-    wing_data = initialize_wing_data(fly_frame, wing_sides=wing_sides)
-
-    # initialize storage for background images
-    bg_dict = dict()
-    for wing_side in wing_sides:
-        roi = wing_data[wing_side]['roi']
-        bg_dict[wing_side] = np.zeros((roi[3]-roi[1], roi[2]-roi[0]),
-                                      dtype=imgs_gray.dtype)
-
-    # set up view window for loop over images
-    if viz_flag:
-        window_name = 'wing_tracking'
-        cv2.namedWindow(window_name)
-        colors = [(255.0, 255.0, 255.0, 255.0), (0.0, 0.0, 0.0, 255.0)]
-
-    # loop over images
-    for ith in range(imgs_gray.shape[0]):
-        # read out current image
-        im_gray = imgs_gray[ith].copy()
-
-        # loop over wing sides
-        for wing_side in wing_sides:
-            # crop image to current roi
-            roi = wing_data[wing_side]['roi']
-            im_gray_crop = im_gray[roi[1]:roi[3], roi[0]:roi[2]]
-
-            # get background for current roi
-            bg_idx = slice(max([ith - bg_window, 0]), ith)
-            # np.median(imgs_gray[bg_idx, roi[1]:roi[3], roi[0]:roi[2]], axis=0, out=bg_dict[wing_side])
-            np.max(imgs_gray[bg_idx, roi[1]:roi[3], roi[0]:roi[2]], axis=0, out=bg_dict[wing_side])
-
-            # subtract off background from current image
-            # im_bg_sub = cv2.absdiff(bg_dict[wing_side], im_gray_crop)
-            # im_bg_sub = cv2.subtract(im_gray_crop, bg_dict[wing_side])
-            im_bg_sub = cv2.subtract(bg_dict[wing_side], im_gray_crop)
-
-            # get edges for angles
-            angle_max, angle_min = get_wing_edges_roi(im_bg_sub,
-                                                      wing_data[wing_side]['mask_crop'],
-                                                      wing_data[wing_side]['hinge_pt'],
-                                                      roi,
-                                                      canny_sigma=canny_sigma,
-                                                      min_area=min_area,
-                                                      extra_process_flag=extra_process_flag)
-
-            # append these to lists
-            wing_data[wing_side]['angles_max'].append(angle_max)
-            wing_data[wing_side]['angles_min'].append(angle_min)
-
-            # draw circles on image if visualizing
-            if viz_flag:
-                # TEMP show ROI image
-                im_gray[roi[1]:roi[3], roi[0]:roi[2]] = im_bg_sub
-                for jth, angle in enumerate([angle_max, angle_min]):
-                    if np.isnan(angle):
-                        continue
-                    pt = (wing_data[wing_side]['hinge_pt'] + (wing_data[wing_side]['radius_avg'] *
-                          np.array([np.cos(angle), np.sin(angle)])))
-                    cv2.circle(im_gray, pt.astype('int'), 4, colors[jth], -1)
-
-        # visualize image with detected angles
-        if viz_flag:
-            cv2.imshow(window_name, im_gray)
-
-            k = cv2.waitKey(30) & 0xff  # 30
-            if k == 27:
-                break
-
-    # destroy visualize windows
-    if viz_flag:
-        cv2.destroyAllWindows()
-
-    # make sure we have body angle value
-    if body_angle is None:
-        body_angle = fly_frame.get_body_angle()
-
-    wing_data['body_angle'] = body_angle
-
-    # convert angles to body coordinates
-    for wing_side in wing_sides:
-        for ang in ['angles_max', 'angles_min']:
-            wing_data[wing_side][ang] = angle_to_stroke(wing_data[wing_side][ang],
-                                                        wing_side, body_angle)
-
-    # return wing data dictionary
-    return wing_data
-
-
-# ------------------------------------------------------------------------------------------
-def track_low_speed_video_cap(cap, fly_frame=None, wing_sides=['right', 'left'],
-                              body_angle=None, bg_window=BG_WINDOW, canny_sigma=CANNY_SIGMA,
-                              min_area=MIN_EDGE_AREA, extra_process_flag=True, viz_flag=False):
+def track_video_cap(cap, fly_frame=None, wing_sides=['right', 'left'],
+                    body_angle=None, bg_window=BG_WINDOW, canny_sigma=CANNY_SIGMA,
+                    min_area=MIN_EDGE_AREA, extra_process_flag=True, viz_flag=False):
     """
     Function to run wing tracking on a "low-speed" video (~250 fps) using a VideoCapture
 
@@ -630,8 +586,8 @@ def track_low_speed_video_cap(cap, fly_frame=None, wing_sides=['right', 'left'],
         roi = wing_data[wing_side]['roi']
         roi_size = (roi[3] - roi[1], roi[2] - roi[0])
         bg_dict[wing_side] = MovingMaxImage(buffer_size=bg_window,
-                                               img_size=roi_size,
-                                               dtype=np.uint8)
+                                            img_size=roi_size,
+                                            dtype=np.uint8)
 
     # loop over images
     while True:
@@ -655,7 +611,8 @@ def track_low_speed_video_cap(cap, fly_frame=None, wing_sides=['right', 'left'],
 
             # subtract off background from current image
             # im_bg_sub = compare_images(im_gray_crop, bg_clip)
-            # im_bg_sub = cv2.absdiff(im_gray_crop, bg_dict[wing_side].median_image)
+            # im_bg_sub = cv2.absdiff(im_gray_crop, bg_dict[wing_side].filter_image)
+
             im_bg_sub = cv2.subtract(bg_dict[wing_side].filter_image, im_gray_crop)
 
             # get edges for angles
@@ -664,7 +621,7 @@ def track_low_speed_video_cap(cap, fly_frame=None, wing_sides=['right', 'left'],
                                                       wing_data[wing_side]['hinge_pt'],
                                                       roi,
                                                       canny_sigma=canny_sigma,
-                                                      min_area=4,  # min_area,
+                                                      min_area=min_area,
                                                       extra_process_flag=extra_process_flag)
 
             # append these to lists
@@ -682,14 +639,14 @@ def track_low_speed_video_cap(cap, fly_frame=None, wing_sides=['right', 'left'],
                     if np.isnan(angle):
                         continue
                     pt = (wing_data[wing_side]['hinge_pt'] + (wing_data[wing_side]['radius_avg'] *
-                          np.array([np.cos(angle), np.sin(angle)])))
+                                                              np.array([np.cos(angle), np.sin(angle)])))
                     cv2.circle(im_gray, pt.astype('int'), 4, colors[jth], -1)
 
         # visualize image with detected angles
         if viz_flag:
             cv2.imshow(window_name, im_gray)
 
-            k = cv2.waitKey(0) & 0xff  #  30
+            k = cv2.waitKey(30) & 0xff
             if k == 27:
                 break
 
@@ -706,21 +663,21 @@ def track_low_speed_video_cap(cap, fly_frame=None, wing_sides=['right', 'left'],
     # convert angles to body coordinates
     for wing_side in wing_sides:
         for ang in ['angles_max', 'angles_min']:
-            wing_data[wing_side][ang] = angle_to_stroke(wing_data[wing_side][ang],
-                                                        wing_side, body_angle)
+            wing_data[wing_side][ang] = image_to_stroke_angle(wing_data[wing_side][ang],
+                                                              wing_side, body_angle)
 
     # return wing data dictionary
     return wing_data
 
 
 # --------------------------------------------------------------------------------------
-def run_track_low_speed_video(data_folder, axo_num, chunk_size=1000, fly_frame=None,
-                              wing_sides=['right', 'left'], bg_window=BG_WINDOW,
-                              canny_sigma=CANNY_SIGMA, min_area=MIN_EDGE_AREA,
-                              data_suffix='', extra_process_flag=True,
-                              viz_flag=False, verbose_flag=False):
+def run_track_video(data_folder, axo_num, chunk_size=1000, fly_frame=None,
+                    wing_sides=['right', 'left'], bg_window=BG_WINDOW,
+                    canny_sigma=CANNY_SIGMA, min_area=MIN_EDGE_AREA,
+                    data_suffix='', extra_process_flag=True,
+                    viz_flag=False, verbose_flag=False):
     """
-    Wrapper function to run track_low_speed_video on an input video
+    Wrapper function to run track_video on an input video
 
     Args:
         data_folder: which folder (indexed by experiment number) to get data from
@@ -752,13 +709,14 @@ def run_track_low_speed_video(data_folder, axo_num, chunk_size=1000, fly_frame=N
         fly_frame = FlyFrame()
 
         # allow user to set frame coordinates
-        imgs, metadata = load_video_data(data_folder, axo_num, frame_range=(0, 2*chunk_size))
-        cap = ArrayVideoCapture(imgs.copy())
+        cap, metadata = load_video_data(data_folder, axo_num, frame_range=(0, 2 * chunk_size),
+                                         data_suffix=data_suffix, return_cap_flag=True)
         fly_frame.run_video(cap)
         cap.release()
     else:
         # otherwise we still need metadata to get total frame count
-        _, metadata = load_video_data(data_folder, axo_num, frame_range=(0, 1))
+        _, metadata = load_video_data(data_folder, axo_num, frame_range=(0, 1),
+                                      data_suffix=data_suffix)
 
     # get body angle
     head_pt = fly_frame.params['body_axis']['end_pt']
@@ -768,26 +726,29 @@ def run_track_low_speed_video(data_folder, axo_num, chunk_size=1000, fly_frame=N
     # run video processing in chunks (too large to do the whole thing at once)
     if 'n_frames' in metadata.keys():
         n_imgs = metadata['n_frames']
+    elif 'Total Frame' in metadata.keys():
+        n_imgs = metadata['Total Frame']
     else:
-        print('Complete this code! Need to put in the method for getting frame count from .mraw metadata')
+        raise Exception('Cannot locate total frame count!')
 
     chunks = [(x, x + chunk_size if x + chunk_size < n_imgs else n_imgs)
               for x in range(0, n_imgs, chunk_size)]
 
     for ith, chunk in enumerate(chunks):
         # load images in current chunk
-        imgs, _ = load_video_data(data_folder, axo_num, frame_range=chunk)
+        imgs, _ = load_video_data(data_folder, axo_num, frame_range=chunk, data_suffix=data_suffix)
+        cap = ArrayVideoCapture(imgs.copy())
 
         # process images
-        wing_data_curr = track_low_speed_video(imgs,
-                                               fly_frame=fly_frame,
-                                               wing_sides=wing_sides,
-                                               body_angle=body_angle,
-                                               bg_window=bg_window,
-                                               canny_sigma=canny_sigma,
-                                               min_area=min_area,
-                                               extra_process_flag=extra_process_flag,
-                                               viz_flag=viz_flag)
+        wing_data_curr = track_video_cap(cap,
+                                         fly_frame=fly_frame,
+                                         wing_sides=wing_sides,
+                                         body_angle=body_angle,
+                                         bg_window=bg_window,
+                                         canny_sigma=canny_sigma,
+                                         min_area=min_area,
+                                         extra_process_flag=extra_process_flag,
+                                         viz_flag=viz_flag)
 
         # store data
         if ith == 0:
@@ -803,23 +764,23 @@ def run_track_low_speed_video(data_folder, axo_num, chunk_size=1000, fly_frame=N
 
     # finish up
     wing_data['fly_frame'] = fly_frame.__dict__
+    wing_data['record_fps'] = metadata['record_fps']
 
     return wing_data
 
 
 # --------------------------------------------------------------------------------------
-def run_track_low_speed_video_cap(data_folder, axo_num, fly_frame=None,
-                                  wing_sides=['right', 'left'], bg_window=BG_WINDOW,
-                                  canny_sigma=CANNY_SIGMA, min_area=MIN_EDGE_AREA,
-                                  data_suffix='', extra_process_flag=True,
-                                  viz_flag=False, verbose_flag=False):
+def run_track_video_cap(data_folder, axo_num, fly_frame=None,
+                        wing_sides=['right', 'left'], bg_window=BG_WINDOW,
+                        canny_sigma=CANNY_SIGMA, min_area=MIN_EDGE_AREA,
+                        data_suffix='', extra_process_flag=True,
+                        viz_flag=False, verbose_flag=False):
     """
-    Wrapper function to run track_low_speed_video on an input video using VideoCapture
+    Wrapper function to run track_video on an input video using VideoCapture
 
     Args:
         data_folder: which folder (indexed by experiment number) to get data from
         axo_num: trial number to get data from
-        chunk_size: number of video frames to process at a time
         fly_frame: instance of FlyFrame object giving fly reference frame, ROIs,
             masks, etc. See kindafly.py. If None, manually do it here
         wing_sides: names for the wings to track. Adding this as an input to allow
@@ -837,8 +798,8 @@ def run_track_low_speed_video_cap(data_folder, axo_num, fly_frame=None,
 
     """
     # load VideoCapture for video
-    cap, _ = load_video_data(data_folder, axo_num, return_cap_flag=True,
-                             data_suffix=data_suffix)
+    cap, metadata = load_video_data(data_folder, axo_num, return_cap_flag=True,
+                                    data_suffix=data_suffix)
 
     # get fly reference frame if we don't have it already
     if fly_frame is None:
@@ -857,15 +818,15 @@ def run_track_low_speed_video_cap(data_folder, axo_num, fly_frame=None,
     body_angle = get_body_angle(thorax_pt, head_pt)  # + np.pi
 
     # process images
-    wing_data = track_low_speed_video_cap(cap,
-                                          fly_frame=fly_frame,
-                                          wing_sides=wing_sides,
-                                          body_angle=body_angle,
-                                          bg_window=bg_window,
-                                          canny_sigma=canny_sigma,
-                                          min_area=min_area,
-                                          extra_process_flag=extra_process_flag,
-                                          viz_flag=viz_flag)
+    wing_data = track_video_cap(cap,
+                                fly_frame=fly_frame,
+                                wing_sides=wing_sides,
+                                body_angle=body_angle,
+                                bg_window=bg_window,
+                                canny_sigma=canny_sigma,
+                                min_area=min_area,
+                                extra_process_flag=extra_process_flag,
+                                viz_flag=viz_flag)
 
     # print update?
     if verbose_flag:
@@ -873,8 +834,175 @@ def run_track_low_speed_video_cap(data_folder, axo_num, fly_frame=None,
 
     # finish up
     wing_data['fly_frame'] = fly_frame.__dict__
+    wing_data['record_fps'] = metadata['record_fps']
     cap.release()
 
+    return wing_data
+
+
+# --------------------------------------------------------------------------------------
+def assign_leading_trailing(angles_min, angles_max,
+                            min_height_prctile=MIN_HEIGHT_PRCTILE,
+                            min_prom_factor=MIN_PROMINENCE_FACTOR,
+                            viz_flag=False):
+    """
+    Function to get leading and trailing edge angles from the two angles we measure
+    directly from video: min and max angles (corresponding to the extremes
+    of the wing wedge ROI edge angles).
+
+    *This function assumes that angles_min and angles_max are in stroke angle coords
+    (see image_to_stroke_angle function in this file)
+
+    NB: this is really only applicable for high-speed video, since we can only get the
+    front of the wing envelope in low-speed
+
+    Args:
+        angles_min: array of minimum angles measured from video IN STROKE ANGLE COORDS
+        angles_max: array of maximum angles measured from video IN STROKE ANGLE COORDS
+        min_height_prctile: percentile value used to calculate minimum height in peak
+            detection, which is used to identify wing flip points
+        min_prom_factor: value multiplied by the range (max - min) of the signal to
+            determine the minimum peak prominence, used to identify wing flip points
+        viz_flag: boolean, visualize leading/trailing assignment?
+
+    Returns:
+        angles_leading: array of angles of the wing LEADING edge (will be in stroke
+            angle coordinates, like the input)
+        angles_trailing: array of angles of the wing TRAILING edge (will be in stroke
+            angle coordinates, like the input)
+
+    """
+    # get signals for the difference between the two angles at all times
+    wing_angle_diff = angles_max - angles_min
+
+    # 'max' and 'min' labels are assigned when we extract angles in image frame, so
+    # left vs right side will have a sign flip. remove that for consistency
+    if np.nanmean(wing_angle_diff) < 0:
+        wing_angle_diff *= -1
+        angles_max_copy = angles_max.copy()
+        angles_max = angles_min
+        angles_min = angles_max_copy
+
+    # get signals for wing "center of mass" (in angle coordinates) and its velocity
+    wing_cm_angles = (np.asarray(angles_max) + np.asarray(angles_min))/2.0
+    wing_cm_vel = np.gradient(wing_cm_angles)
+
+    # wing flipping happens at minima of wing_angle_diff signal. locate these points
+    min_height = np.nanpercentile(-1*wing_angle_diff, min_height_prctile)
+    min_prominence = min_prom_factor * (np.nanmax(wing_angle_diff) -
+                                        np.nanmin(wing_angle_diff))
+
+    flips, _ = find_peaks(-1*wing_angle_diff,
+                          height=(min_height, None),
+                          prominence=(min_prominence, None))
+
+    # get indices for chunks between flips to find avg vel in these regions
+    chunk_idx = [np.sum(t >= flips) for t in np.arange(wing_angle_diff.size)]
+    chunk_idx = np.asarray(chunk_idx)
+    chunk_idx_unique = np.unique(chunk_idx)
+
+    angles_leading = []  # initialize some storage
+    angles_trailing = []
+
+    # loop over chunks, get average angular velocity, and assign leading/trailing
+    for chunk in chunk_idx_unique:
+        idx = (chunk_idx == chunk)
+        vel_mean = np.mean(wing_cm_vel[idx])
+
+        if vel_mean <= 0:
+            leading = angles_min[idx]
+            trailing = angles_max[idx]
+        else:
+            leading = angles_max[idx]
+            trailing = angles_min[idx]
+
+        angles_leading.extend(leading)
+        angles_trailing.extend(trailing)
+
+    # convert to arrays
+    angles_leading = np.asarray(angles_leading)
+    angles_trailing = np.asarray(angles_trailing)
+
+    # now go back and examine first and final chunks. because they're probably
+    # incomplete, their average velocity may have the wrong sign
+    check_pair = [[0, 1], [-1, -2]]  # each entry list contains index pairs to check
+    for pair in check_pair:
+        # get indices for chunks to compare
+        idx_check = (chunk_idx == chunk_idx_unique[pair[0]])  # chunk to check
+        idx_ref = (chunk_idx == chunk_idx_unique[pair[1]])  # chunk to reference
+
+        # compare velocities -- they should have opposite sign. if not, swap
+        vel_check_sign = np.sign(np.mean(wing_cm_vel[idx_check]))
+        vel_ref_sign = np.sign(np.mean(wing_cm_vel[idx_ref]))
+        if vel_check_sign == vel_ref_sign:
+            tmp = angles_leading[idx_check].copy()
+            angles_leading[idx_check] = angles_trailing[idx_check]
+            angles_trailing[idx_check] = tmp
+
+    # visualize results?
+    if viz_flag:
+        # make figure
+        fig, ax = plt.subplots()
+
+        # plot angles
+        ax.plot(angles_leading, 'b-', label='leading')
+        ax.plot(angles_trailing, 'r-', label='trailing')
+
+        # label axes
+        ax.set_xlabel('time (index)')
+        ax.set_ylabel('angle (rad)')
+        ax.legend()
+
+        # display figure
+        plt.show()
+
+    # return angles
+    return angles_leading, angles_trailing, flips
+
+
+# --------------------------------------------------------------------------------------
+def run_assign_leading_trailing(wing_data, wing_sides=['right', 'left'],
+                                min_height_prctile=MIN_HEIGHT_PRCTILE,
+                                min_prom_factor=MIN_PROMINENCE_FACTOR,
+                                viz_flag=False):
+    """
+    Wrapper function to run 'assign_leading_trailing' on a wing_data dictionary (the
+    output of run_track_video)
+
+    Args:
+        wing_data: dictionary containing wing data; output of run_track_video and
+            run_track_video_cap
+        wing_sides: list with strings indicating wing sides
+        min_height_prctile: percentile value used to calculate minimum height in peak
+            detection, which is used to identify wing flip points
+        min_prom_factor: value multiplied by the range (max - min) of the signal to
+            determine the minimum peak prominence, used to identify wing flip points
+        viz_flag: boolean, visualize leading/trailing assignment?
+
+    Returns:
+        wing_data: updated wing data dictionary
+
+    """
+    # loop over wing sides and do assignment
+    for wing_side in wing_sides:
+        # load angles for current wing side
+        angles_min = wing_data[wing_side]['angles_min']
+        angles_max = wing_data[wing_side]['angles_max']
+
+        # do leading/trailing assignment
+        angles_lead, angles_trail, flips = assign_leading_trailing(angles_min, angles_max,
+                                                                   min_height_prctile=min_height_prctile,
+                                                                   min_prom_factor=min_prom_factor,
+                                                                   viz_flag=viz_flag)
+
+        # add leading/trailing to dictionary; remove min/max
+        wing_data[wing_side]['angles_lead'] = angles_lead
+        wing_data[wing_side]['angles_trail'] = angles_trail
+        wing_data[wing_side]['flip_ind'] = flips
+        del wing_data[wing_side]['angles_min']
+        del wing_data[wing_side]['angles_max']
+
+    # return updated dictionary
     return wing_data
 
 
@@ -908,11 +1036,11 @@ def align_kinematics_to_cam(wing_amp, cam, sync_output_rate=0.5, viz_flag=False)
 
     # resample according to sync_output_rate
     align_idx = np.linspace(cam_idx[0], cam_idx[-1],
-                            int(len(cam_idx)/sync_output_rate)).astype('int')
+                            int(len(cam_idx) / sync_output_rate)).astype('int')
 
     # restrict attention to last N points, where N is the number of wing_amp points
     # (because 'cam' is high during Record AND Ready state, we have extra signal)
-    align_idx = align_idx[(-1*wing_amp.size):]
+    align_idx = align_idx[(-1 * wing_amp.size):]
 
     # get wing kinematic variable values at sample points
     wing_amp_aligned = np.nan * np.ones(cam.shape)
@@ -938,8 +1066,9 @@ def align_kinematics_to_cam(wing_amp, cam, sync_output_rate=0.5, viz_flag=False)
 
 # --------------------------------------------------------------------------------------
 def add_kinematics_to_axo(wing_data, data_folder, axo_num, data_suffix='_processed',
-                          sync_output_rate=0.5, wing_sides=['right', 'left'],
-                          wing_vars=['amp'], wing_var_dict=WING_VAR_DICT,
+                          sync_output_rate_default=SYNC_OUTPUT_RATE_DEFAULT,
+                          wing_sides=['right', 'left'], wing_vars=WING_VARS,
+                          wing_var_dict=WING_VAR_DICT, smooth_factor=SMOOTH_FACTOR,
                           save_flag=False, viz_flag=False):
     """
     Function to add tracked wing kinematics to processed data dictionaries containing
@@ -954,8 +1083,9 @@ def add_kinematics_to_axo(wing_data, data_folder, axo_num, data_suffix='_process
         data_folder: expr folder corresponding to this trial (XX_YYYYMMDD form)
         axo_num: number of current trial
         data_suffix: suffix for processed data file to load
-        sync_output_rate: rate at which camera sends sync signals relative to frame
-            rate. see align_kinematics_to_cam(...) above
+        sync_output_rate_default: assumed rate at which camera sends sync signals
+            relative to its frame rate. see align_kinematics_to_cam(...) above
+            NB: we'll calculate this if we have sufficient info though
         wing_sides: list giving the wing sides we want to include
         wing_vars: list giving variables we want to analyze. these should correspond
             to entries in wing_var_dict
@@ -964,6 +1094,8 @@ def add_kinematics_to_axo(wing_data, data_folder, axo_num, data_suffix='_process
                'right_amp': 'angles_min'
             signifying that the measurement in tracking, angles_min, corresponds to
             the amplitude of the right wing. for the left, it's angles_max
+        smooth_factor: scipy UnivariateSpline positive smoothing factor, used to
+            choose number of spline knots for wing data interpolant
         save_flag: bool, save resultant combined data?
         viz_flag: visualize alignment? gets passed to align_kinematics_to_cam
 
@@ -978,27 +1110,71 @@ def add_kinematics_to_axo(wing_data, data_folder, axo_num, data_suffix='_process
     cam = data['cam']
     t = data['time']
 
+    # initialize a sub-dictionary in data to store wing kinematics
+    if 'wing' not in data.keys():
+        data['wing'] = dict()
+
+    # try to guess sync_output_rate from 1) camera fps and 2) cam signal to axo
+    if 'record_fps' in wing_data.keys():
+        # get actual camera frame rate
+        vid_fps = wing_data['record_fps']
+
+        # get frequency of signal from cam to axo
+        fs = data['sampling_freq']
+        cam_idx = idx_by_thresh(cam)
+        cam_idx = np.asarray([idx[0] for idx in cam_idx])
+        cam_freq = fs/np.mean(np.diff(cam_idx))
+
+        # use these two to get sync_output_rate
+        # NB: possible values are 0.5, 1, 2, 4, so we need a round step
+        sync_output_rate = round(10 * (cam_freq / vid_fps)) / 10.0
+
+    else:
+        # otherwise just use default guess
+        sync_output_rate = sync_output_rate_default
+
+    # should only need to do alignment once, since video measurements all per frame
+    align_idx = None
+
     # loop over wing side, align, and convert
     for wing_side in wing_sides:
         for var in wing_vars:
             # get current side/variable pair
+            if wing_var_dict[f'{wing_side}_{var}'] not in wing_data[wing_side].keys():
+                continue
             wing_amp = wing_data[wing_side][wing_var_dict[f'{wing_side}_{var}']]
 
-            # align
-            wing_amp_aligned, align_idx = align_kinematics_to_cam(wing_amp, cam,
-                                                                  sync_output_rate=sync_output_rate,
-                                                                  viz_flag=viz_flag)
+            # align if we haven't already
+            if align_idx is None:
+                wing_amp_aligned, align_idx = align_kinematics_to_cam(wing_amp, cam,
+                                                                      sync_output_rate=sync_output_rate,
+                                                                      viz_flag=viz_flag)
+
+            else:
+                # otherwise just use previously computed values
+                wing_amp_aligned = np.nan * np.ones(cam.shape)
+                wing_amp_aligned[align_idx] = wing_amp
 
             # interpolate
-            f_amp = interp1d(t[align_idx], wing_amp_aligned[align_idx], kind='nearest',
-                             bounds_error=False)
-            wing_amp_interp = f_amp(t)
+            wing_amp_interp = wing_amp_aligned.copy()
+
+            align_nan_idx = np.isnan(wing_amp_aligned[align_idx])
+            f_amp = UnivariateSpline(t[align_idx][~align_nan_idx],
+                                     wing_amp_aligned[align_idx][~align_nan_idx],
+                                     s=smooth_factor,
+                                     ext=3)  # ext=3 means we extrapolate using boundary vals
+
+            # to preserve nans outside video region, only apply interpolant to small region
+            interp_region = np.arange(align_idx[~align_nan_idx][0],
+                                      align_idx[~align_nan_idx][-1])
+            wing_amp_interp[interp_region] = f_amp(t[interp_region])
 
             # add this interpolated signal to the data dict
-            data[f'{wing_side}_{var}'] = wing_amp_interp
+            data['wing'][f'{wing_side}_{var}_raw'] = wing_amp_aligned
+            data['wing'][f'{wing_side}_{var}'] = wing_amp_interp
 
     # also add fly reference frame to data dict
-    data['fly_frame'] = wing_data['fly_frame']
+    data['wing']['fly_frame'] = wing_data['fly_frame']
 
     # save output?
     if save_flag:
@@ -1008,6 +1184,258 @@ def add_kinematics_to_axo(wing_data, data_folder, axo_num, data_suffix='_process
 
     # return resulting data dict
     return data
+
+
+# --------------------------------------------------------------------------------------
+def calc_stroke_amplitude(angles_lead):
+    """
+    Should make this a little more general, but add a function to get stroke amplitude
+    for kinematics from high-speed video, based on the angle of the leading edge
+
+    Args:
+        angles_lead: angle of leading edge of the wing, in body (aka stroke) coordinates
+
+    Returns:
+        stroke_amp: stroke amplitude, in whichever units angles_lead is in
+        stroke_amp_ind: indices in ephys data array where we measure stroke amplitude
+            (halfway between the extrema, so we get two measurments per wingstroke)
+        stroke_max_ind: indices where stroke is at its maximum
+        stroke_min_ind: indices where stroke is at its minimum
+
+    """
+    # fit spline to angle input (where it isn't nan)
+    nan_idx = np.isnan(angles_lead)
+    t_samp = np.arange(angles_lead.size)
+
+    angle_spline = UnivariateSpline(t_samp[~nan_idx], angles_lead[~nan_idx],
+                                    s=0, k=4, ext=3)
+
+    # find roots of derivative of spline
+    angle_spline_deriv = angle_spline.derivative()
+    extrema_times = angle_spline_deriv.roots()
+    extrema_ind = np.asarray([np.argmin(np.abs(t_samp[~nan_idx] - et))
+                              for et in extrema_times])
+    extrema_ind += np.where(~nan_idx)[0][0]
+
+    # determine points of max/min stroke angle
+    angles_lead_mean = np.nanmean(angles_lead)
+    stroke_max_ind = extrema_ind[angles_lead[extrema_ind] > angles_lead_mean]
+    stroke_min_ind = extrema_ind[angles_lead[extrema_ind] < angles_lead_mean]
+
+    # calculate stroke amplitude
+    stroke_amp = np.abs(np.diff(angles_lead[extrema_ind]))
+    stroke_amp_ind = (extrema_ind[:-1] + extrema_ind[1:]) / 2
+    stroke_amp_ind = stroke_amp_ind.astype('int')
+
+    # return
+    return stroke_amp, stroke_amp_ind, stroke_max_ind, stroke_min_ind
+
+
+# --------------------------------------------------------------------------------------
+def analyze_video(data_folder, axo_num, fly_frame=None, data_suffix='',
+                  wing_sides=['right', 'left'], bg_window=BG_WINDOW,
+                  canny_sigma=CANNY_SIGMA, min_area=MIN_EDGE_AREA,
+                  extra_process_flag=True, min_height_prctile=MIN_HEIGHT_PRCTILE,
+                  min_prom_factor=MIN_PROMINENCE_FACTOR, axo_data_suffix='_processed',
+                  sync_output_rate_default=SYNC_OUTPUT_RATE_DEFAULT,
+                  wing_vars=WING_VARS, wing_var_dict=WING_VAR_DICT,
+                  smooth_factor=SMOOTH_FACTOR, save_flag=False,
+                  viz_flag=False, verbose_flag=False, make_plot_flag=False):
+    """
+    Wrapper function to load a flight video, analyze it, and add the resulting kinematic
+    measurements to the data dictionary containing ephys signals, etc.
+
+    Args:
+        data_folder: expr folder corresponding to this trial (XX_YYYYMMDD form)
+            (general)
+
+        axo_num: number of current trial (general)
+
+        fly_frame: instance of FlyFrame object giving fly reference frame, ROIs,
+            masks, etc. See kindafly.py. If None, manually do it here
+
+        data_suffix: string, filename suffix to look for when loading video data
+            (general)
+
+        wing_sides: names for the wings to track. Adding this as an input to allow
+            single wing tracking (general)
+
+        bg_window: size of one side of the rolling window used to estimate the background
+            (run_track_video_cap)
+
+        canny_sigma: size of gaussian filter to use prior to Canny edge detection
+            (run_track_video_cap)
+
+        min_area: smallest allowable area for putative edges detected via Canny method
+            (run_track_video_cap)
+
+        extra_process_flag: bool, do some extra contrast enhancement on image?
+            (run_track_video_cap)
+
+        min_height_prctile: percentile value used to calculate minimum height in peak
+            detection, which is used to identify wing flip points
+            (run_assign_leading_trailing)
+
+        min_prom_factor: value multiplied by the range (max - min) of the signal to
+            determine the minimum peak prominence, used to identify wing flip points
+            (run_assign_leading_trailing)
+
+        axo_data_suffix: data suffix for axo data file to load (add_kinematics_to_axo)
+
+        sync_output_rate_default: assumed rate at which camera sends sync signals
+            relative to its frame rate. see align_kinematics_to_cam(...) above
+            NB: we'll calculate this if we have sufficient info though
+            (add_kinematics_to_axo)
+
+        wing_vars: list giving variables we want to analyze. these should correspond
+            to entries in wing_var_dict (add_kinematics_to_axo)
+
+        wing_var_dict: dictionary with entries that relate tracking measurements to
+            variables we know about (add_kinematics_to_axo)
+
+        smooth_factor: scipy UnivariateSpline positive smoothing factor, used to
+            choose # of spline knots for wing data interp (add_kinematics_to_axo)
+
+        save_flag: bool,  save data dictionary with ephys + aligned kinematics?
+            (add_kinematics_to_axo)
+
+        viz_flag: bool, visualize tracking output? (general)
+
+        verbose_flag: bool, print updates during processing? (general)
+
+        make_plot_flag: bool, generate a plot of ~stroke angle and save, so we have
+            an easy check for goodness of tracking?
+
+    Returns:
+        data: dictionary containing ephys data and aligned kinematic data
+
+        wing_data: dictionary containing wing kinematic data
+
+    """
+    # print an update?
+    if verbose_flag:
+        print(f'Beginning tracking for expr {data_folder}, axo {axo_num}...')
+
+    # run wing kinematic extraction
+    wing_data = run_track_video_cap(data_folder, axo_num,
+                                    fly_frame=fly_frame,
+                                    wing_sides=wing_sides,
+                                    bg_window=bg_window,
+                                    canny_sigma=canny_sigma,
+                                    min_area=min_area,
+                                    data_suffix=data_suffix,
+                                    extra_process_flag=extra_process_flag,
+                                    viz_flag=viz_flag,
+                                    verbose_flag=verbose_flag)
+
+    # print an update?
+    if verbose_flag:
+        print(f'Completed tracking for expr {data_folder}, axo {axo_num}')
+        print(f'Processing kinematics for expr {data_folder}, axo {axo_num}...')
+
+    # assign leading vs trailing edge, which is different for high- vs low-speed data
+    highspeed_cutoff = 2000  # cutoff for guessing whether current vid is high-speed
+    record_fps = wing_data['record_fps']
+    if record_fps is None:
+        record_fps = 0  # just avoid annoying exceptions here
+    if record_fps > highspeed_cutoff:
+        wing_data = run_assign_leading_trailing(wing_data,
+                                                wing_sides=wing_sides,
+                                                min_height_prctile=min_height_prctile,
+                                                min_prom_factor=min_prom_factor,
+                                                viz_flag=viz_flag)
+
+    else:
+        # for low-speed, basically just switching around labels, but max/min map to
+        # leading/trailing edges differently depending on wing side
+        for wing_side in wing_sides:
+            if wing_side == 'right':
+                wing_data[wing_side]['angles_lead'] = wing_data[wing_side]['angles_min']
+                wing_data[wing_side]['angles_trail'] = wing_data[wing_side]['angles_max']
+            elif wing_side == 'left':
+                wing_data[wing_side]['angles_lead'] = wing_data[wing_side]['angles_max']
+                wing_data[wing_side]['angles_trail'] = wing_data[wing_side]['angles_min']
+
+            del wing_data[wing_side]['angles_min']
+            del wing_data[wing_side]['angles_max']
+
+    # align wing kinematics to axoscope data
+    data = add_kinematics_to_axo(wing_data, data_folder, axo_num,
+                                 data_suffix=axo_data_suffix,
+                                 sync_output_rate_default=sync_output_rate_default,
+                                 wing_sides=wing_sides,
+                                 wing_vars=wing_vars,
+                                 wing_var_dict=wing_var_dict,
+                                 smooth_factor=smooth_factor,
+                                 save_flag=save_flag,
+                                 viz_flag=viz_flag)
+
+    # add video frame rate to data dictionary
+    data['wing']['record_fps'] = record_fps
+
+    # also get stroke amplitude measurements, if video is high-speed
+    if record_fps > highspeed_cutoff:
+        # loop over wing sides to get values
+        for wing_side in wing_sides:
+            # read out current leading edge angle
+            angles_lead = data['wing'][f'{wing_side}_lead']
+
+            # calculate stroke amplitudes
+            (stroke_amp, stroke_amp_ind, stroke_max_ind, stroke_min_ind) = (
+                calc_stroke_amplitude(angles_lead))
+
+            # store
+            data['wing'][f'{wing_side}_stroke_amp'] = stroke_amp
+            data['wing'][f'{wing_side}_stroke_amp_ind'] = stroke_amp_ind
+            data['wing'][f'{wing_side}_stroke_max_ind'] = stroke_max_ind
+            data['wing'][f'{wing_side}_stroke_min_ind'] = stroke_min_ind
+
+    # make plot to show tracking output?
+    if make_plot_flag:
+        # initialize figure
+        fig, ax = plt.subplots(figsize=(12, 4))
+
+        # read out some variables
+        t = data['time']
+        right_angle = data['wing']['right_lead']
+        left_angle = data['wing']['left_lead']
+        nan_ind = np.where(np.isnan(right_angle))[0]
+
+        # plot different range depending on whether video is high-speed or no
+        if record_fps > highspeed_cutoff:
+            # for high-speed video, plot small range of left and right stroke
+            tmin = t[nan_ind[0]]
+            tmax = t[nan_ind[0]+200]
+
+        else:
+            # for low-speed, plot stroke amp for full range
+            tmin = t[nan_ind[0]]
+            tmax = t[nan_ind[-1]]
+
+        # restrict plot to specified time range
+        plot_mask = (t >= tmin) & (t <= tmax)
+
+        # plot
+        ax.plot(t[plot_mask], right_angle[plot_mask], 'r-', label='right')
+        ax.plot(t[plot_mask], left_angle[plot_mask], 'b-', label='left')
+
+        # label axes
+        ax.legend()
+        ax.set_ylabel('angle (rad)')
+        ax.set_xlabel('time (s)')
+
+        # save figure
+        filepath_load = data['filepath_load']
+        save_path, _ = os.path.split(filepath_load)
+        fig.savefig(os.path.join(save_path, 'wing_tracking.png'))
+
+    # print an update?
+    if verbose_flag:
+        print(f'Completed processing kinematics for expr {data_folder}, axo {axo_num}')
+        print('Done!')
+
+    # return axo data (with aligned kinematics) and wing_data
+    return data, wing_data
 
 
 # ---------------------------------------
@@ -1028,6 +1456,15 @@ class ArrayVideoCapture:
             return True, frame
         else:
             return False, None
+
+    # mimic OpenCV cap.set
+    def set(self, command, val):
+        if command == cv2.CAP_PROP_POS_FRAMES:
+            # set frame index
+            self.index = val
+
+        else:
+            print('fill this out!')
 
     def release(self):
         pass
@@ -1081,13 +1518,11 @@ if __name__ == "__main__":
     fly_frame = FlyFrame()
 
     # load video to test on
-    return_cap_flag = False
-    imgs, _ = load_video_data(50, 27, frame_range=(0, 1500),
-                               return_cap_flag=return_cap_flag)
-    cap = ArrayVideoCapture(imgs.copy())
-
+    return_cap_flag = True
+    cap, _ = load_video_data(50, 27, frame_range=(0, 1500),
+                              return_cap_flag=return_cap_flag)
     fly_frame.run_video(cap)
-    cap.release()
+    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
     # run test
-    wing_data = track_low_speed_video(imgs, fly_frame=fly_frame, viz_flag=True)
+    wing_data = track_video_cap(cap, fly_frame=fly_frame, viz_flag=True)

@@ -49,7 +49,7 @@ MIC_HIGHCUT_DROSOPHILA = 300   # higher cutoff frequency for mic bandpass filter
 NPERSEG = 16384  # length of window to use in short-time fourier transform for wbf estimate
 
 # flight bout detection (from mic signal)
-MIC_RANGE = (0.35, 9.5)  # (0.05, 8.5)  # (0.35, 6.5) volts. values outside this range are counted as non-flying
+MIC_RANGE = (0.15, 9.5)  # (0.35, 6.5)  # (0.05, 8.5)  # volts. values outside this range are counted as non-flying
 MIN_BOUT_DURATION = 0.5  # 0.25 # seconds. flying bouts must be at least this long
 ROLLING_WINDOW = 501  # size of rolling window for mic amplitude processing
 
@@ -64,13 +64,12 @@ EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
 THRESH_FACTORS_POWER = (1.5, 35)   # (1.5, 35)  # factors multiplied by thresh in spike peak detection
 
 # emg filter params - STEERING
-EMG_LOWCUT_STEER = 700  # 300  # 700
-EMG_HIGHCUT_STEER = 10000
+EMG_LOWCUT_STEER = 450  # 300  # 700
 EMG_HIGHCUT_STEER = 10000
 EMG_BTYPE_STEER = 'bandpass'
 EMG_WINDOW_STEER = 32  # 32
 EMG_OFFSET_STEER = 4
-THRESH_FACTORS_STEER = (1.0, 4)   # (0.75, 4) # (0.35, 0.7)  # (0.65, 8)
+THRESH_FACTORS_STEER = (0.5, 4)  # (1.0, 4.0)  # (0.75, 4) # (0.35, 0.7)  # (0.65, 8)
 
 # general emg filter params
 NOTCH_Q = 2.0  # quality factor for iir notch filter
@@ -765,7 +764,7 @@ def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
 
 
 # ---------------------------------------------------------------------------------
-def estimate_spike_rate(spike_idx, fs, n_pts, viz_flag=False):
+def estimate_spike_rate(spike_idx, fs, n_pts, win_factor=1, viz_flag=False):
     """
     Function to take in spike times as discrete events and output continuous
     spike rate
@@ -774,14 +773,15 @@ def estimate_spike_rate(spike_idx, fs, n_pts, viz_flag=False):
         spike_idx: indices of spikes in time (subscripts)
         fs: sampling frequency, in Hz
         n_pts: size of full time series arrays
+        win_factor: integer value to scale gaussian window size and # of pts by
         viz_flag: bool, visualize spike rate estimate?
 
     Returns: spike_rate, the estimated spike rate in Hz
     """
     # create gaussian window kernel for convolution
     mean_isi = np.mean(np.diff(spike_idx))  # guess how big we need gaussian to be
-    win_std = int(2**np.ceil(np.log2(mean_isi)))
-    win_n_pts = 8*win_std
+    win_std = int(win_factor)*int(2**np.ceil(np.log2(mean_isi)))
+    win_n_pts = int(win_factor)*8*win_std
     gauss_win = signal.windows.gaussian(win_n_pts, win_std)
 
     # create logical index array for spikes
@@ -1019,8 +1019,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '50_20240816'  # '33_20240626'  # '32_20240625'
-    axo_num_list = [27]  # np.arange(30, 34)
+    data_folder = '48_20240813'  # '33_20240626'  # '32_20240625'
+    axo_num_list = [0]  # np.arange(30, 34)
 
     for axo_num in axo_num_list:
         data_path = os.path.join(data_root, data_folder,

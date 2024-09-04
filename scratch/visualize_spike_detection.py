@@ -3,17 +3,7 @@ Temp code to look at b1 vs b2 spikes
 
 """
 # Imports
-import os
-import glob
-import pickle
-import pywt
-
-import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-
-from scipy import signal
-
 from mosquito.process_abf import load_processed_data
 
 # ---------------------------------------
@@ -23,9 +13,9 @@ from mosquito.process_abf import load_processed_data
 if __name__ == "__main__":
     # loading separate data for b1 and b2
     data_folder1 = 50
-    axo_num1 = 32
-    data_folder2 = 50  # 46
-    axo_num2 = 31  # 6
+    axo_num1 = 21
+    data_folder2 = 48  # 46
+    axo_num2 = 0  # 6
 
     # get data files
     try:
@@ -35,7 +25,7 @@ if __name__ == "__main__":
 
     try:
         data2 = load_processed_data(data_folder2, axo_num2, data_suffix='_spikes')
-    except ValueError:
+    except (ValueError, ModuleNotFoundError):
         data2 = load_processed_data(data_folder2, axo_num2)
 
     data_list = [data1, data2]
