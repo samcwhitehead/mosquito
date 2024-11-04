@@ -2,10 +2,7 @@
 Code to analyze EMG data collected during mosquito experiments
 
 TODO:
-    - function to run analysis and save
-    - print out spike detection sanity check
-    - add spike clustering functions
-    - add high-speed video analysis
+    - Finish interactive spike detection!
     - should this be done with wavelets?
     - improved detection of flight bouts (scale microphone)
 
@@ -29,6 +26,7 @@ from scipy import signal
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
+from matplotlib.widgets import Button, Slider
 
 try:
     from util import iir_notch_filter, butter_bandpass_filter, idx_by_thresh
@@ -39,7 +37,14 @@ except ModuleNotFoundError:
 # PARAMS
 # ---------------------------------------
 # debug?
-DEBUG_FLAG = False
+DEBUG_FLAG = True
+
+# when analyzing files, reuse parameters if we've previously analyzed a file?
+REUSE_PARAMS_FLAG = False
+
+# file suffix and type to use for saving
+FILE_SUFFIX = '_processed'
+SAVE_FILE_EXT = '.pkl'
 
 # microphone filter params
 MIC_LOWCUT_AEDES = 200  # lower cutoff frequency for mic bandpass filter
@@ -49,7 +54,7 @@ MIC_HIGHCUT_DROSOPHILA = 300   # higher cutoff frequency for mic bandpass filter
 NPERSEG = 16384  # length of window to use in short-time fourier transform for wbf estimate
 
 # flight bout detection (from mic signal)
-MIC_RANGE = (0.15, 9.5)  # (0.35, 6.5)  # (0.05, 8.5)  # volts. values outside this range are counted as non-flying
+MIC_RANGE = (0.25, 9.5)  # (0.35, 6.5)  # (0.05, 8.5)  # volts. values outside this range are counted as non-flying
 MIN_BOUT_DURATION = 0.5  # 0.25 # seconds. flying bouts must be at least this long
 ROLLING_WINDOW = 501  # size of rolling window for mic amplitude processing
 
@@ -61,19 +66,23 @@ EMG_HIGHCUT_POWER_DROSOPHILA = 10000  # 2000  # higher cutoff frequency for musc
 EMG_BTYPE_POWER = 'bandpass'  # butter filter type (bandpass or bandstop)
 EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
 EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
-THRESH_FACTORS_POWER = (1.5, 35)   # (1.5, 35)  # factors multiplied by thresh in spike peak detection
+THRESH_FACTORS_POWER = (0.75, 25)   # (1.5, 15)  # factors multiplied by thresh in spike peak detection
 
 # emg filter params - STEERING
-EMG_LOWCUT_STEER = 450  # 300  # 700
+EMG_LOWCUT_STEER = 300  # 550  # 300  # 700
 EMG_HIGHCUT_STEER = 10000
 EMG_BTYPE_STEER = 'bandpass'
 EMG_WINDOW_STEER = 32  # 32
 EMG_OFFSET_STEER = 4
-THRESH_FACTORS_STEER = (0.5, 4)  # (1.0, 4.0)  # (0.75, 4) # (0.35, 0.7)  # (0.65, 8)
+THRESH_FACTORS_STEER = (0.55, 4)  # (0.75, 4.0)  # (0.5, 4) # (0.35, 0.7)  # (0.65, 8)
+
+# general spike detection
+REMOVE_EDGE_CASE_FLAG = True  # normally True
+RECENTER_WINDOW_FACTOR = 0.125/2  # 0.125  # 0.125  # normally 1, but smaller lets us detect small nearby spikes
 
 # general emg filter params
 NOTCH_Q = 2.0  # quality factor for iir notch filter
-MIN_SPIKE_DT = 0.00005  # 0.0005 # 0.0015  # in seconds
+MIN_SPIKE_DT = 0.0005  # 0.0005 # 0.0015  # in seconds
 
 
 # ---------------------------------------
@@ -105,6 +114,8 @@ def define_params(muscle_type,
                   emg_window_steer=EMG_WINDOW_STEER,
                   emg_offset_steer=EMG_OFFSET_STEER,
                   thresh_factors_steer=THRESH_FACTORS_STEER,
+                  remove_edge_case_flag=REMOVE_EDGE_CASE_FLAG,
+                  recenter_window_factor=RECENTER_WINDOW_FACTOR,
                   ):
     """
     Convenience function to create a dictionary containing different processing
@@ -126,6 +137,8 @@ def define_params(muscle_type,
     params['nperseg'] = nperseg
     params['notch_q'] = notch_q
     params['min_spike_dt'] = min_spike_dt
+    params['recenter_window_factor'] = recenter_window_factor
+    params['remove_edge_case_flag'] = remove_edge_case_flag
 
     # get mic parameters based on species
     if species == 'drosophila':
@@ -189,7 +202,10 @@ def my_load_abf(filename, print_flag=False):
     channel_names = abf.adcNames
     channel_name_dict = {'Microphon': 'mic',
                          'EMG': 'emg',
-                         'CAM': 'cam'}
+                         'CAM': 'cam',
+                         'ODOR': 'odor',
+                         'EMG2': 'emg2'}
+
     # grab channel data
     for ith, name in enumerate(channel_names):
         # set channel
@@ -204,6 +220,18 @@ def my_load_abf(filename, print_flag=False):
             abf_dict[channel_name_dict[name]] = abf.sweepY
         else:
             abf_dict[name] = abf.sweepY
+
+    # if we have multiple emg signals, put those in a list under a single key
+    emg_keys = [key for key in abf_dict.keys() if 'emg' in key]
+    if len(emg_keys) > 1:
+        # group into list and put under 'emg' key
+        emg_list = [abf_dict[kkey] for kkey in emg_keys]
+        abf_dict['emg'] = emg_list
+
+        # remove other entries
+        remove_keys = [k for k in emg_keys if not k=='emg']
+        for rm_key in remove_keys:
+            del abf_dict[rm_key]
 
     # print header info?
     if print_flag:
@@ -501,7 +529,7 @@ def filter_emg(emg, fs, wbf_mean=None, lowcut=EMG_LOWCUT_POWER,
 
 
 # ---------------------------------------------------------------------------------
-def detrend_emg(emg, window=2*EMG_WINDOW_POWER):
+def detrend_emg(emg, window=4*EMG_WINDOW_POWER, viz_flag=False):
     """
     Convenience function for detrending a signal using a rolling median
 
@@ -512,14 +540,24 @@ def detrend_emg(emg, window=2*EMG_WINDOW_POWER):
     emg_rolling_median.fillna(value=0, inplace=True)
     emg_detrend = emg - emg_rolling_median
 
-    return emg_detrend
+    # visualize detrending?
+    if viz_flag:
+        fig, ax = plt.subplots(figsize=(12,4))
+        ax.plot(emg, label='original')
+        ax.plot(emg_detrend.values, label='detrend')
+        ax.legend()
+        plt.show()
+
+    return emg_detrend.values
 
 
 # ---------------------------------------------------------------------------------
 def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
                   min_spike_dt=MIN_SPIKE_DT, thresh_factors=THRESH_FACTORS_POWER,
+                  recenter_window_factor=RECENTER_WINDOW_FACTOR,
+                  detrend_window=4*EMG_WINDOW_POWER, thresh_vals=None,
                   rm_spikes_flag=False, abs_flag=False, viz_flag=False,
-                  detrend_flag=False):
+                  detrend_flag=False, remove_edge_case_flag=REMOVE_EDGE_CASE_FLAG):
     """
     Detect spikes in EMG data. For now, doing this by setting a threshold
     as a first pass detection method, then extracting windows around spikes
@@ -533,6 +571,14 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
         min_spike_dt: minimum time (in seconds) between spikes
         thresh_factors: two-element tuple of multiplicative factors to apply
             to thresh to get upper and lower spike bounds
+        recenter_window_factor: what fraction of window should be used to
+            search around initially located peak to recenter on spike?
+        detrend_window: window size to use if detrending (controlled by
+            detrend_flag)
+        thresh_vals: two-element tuple giving values for upper and lower
+            threshold. Should usually be None, since we estimate thresholds
+            on a per-signal basis. However, when manually tuning, it's nice
+            to be able to set values.
         rm_spikes_flag: remove extracted spikes that have non-zero mean in
             the early portion of the time trace? This is particularly
             helpful for removing 'spikes' that are actually just the recovery
@@ -540,6 +586,8 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
         abs_flag: bool, take absolute value for peak detection?
         viz_flag: bool, visualize spike detection?
         detrend_flag: try to detrend signal using rolling median?
+        remove_edge_case_flag: boolean. remove spike if the maximum in the window
+            around peak is at the window's edge? Generally a good idea(?)
 
     Returns:
         spikes: array of emg windows around spikes
@@ -555,39 +603,46 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
 
     # do first-pass spike location estimate using peak detection
     min_peak_dist = np.round(fs*min_spike_dt)
-    min_height = thresh_factors[0] * thresh  # 2*
-    max_height = thresh_factors[1] * thresh  # 8*
+    if thresh_vals is None:
+        min_height = thresh_factors[0] * thresh  # 2*
+        max_height = thresh_factors[1] * thresh  # 8*
+    else:
+        min_height = thresh_vals[0]
+        max_height = thresh_vals[1]
 
-    # take absolute value of signal (i.e. only look for positive peaks?)
+    # detrend data? i.e. try to remove baseline fluctuations
     if detrend_flag:
-        peak_signal = detrend_emg(emg, window=round(4*window))  # window=window)   #
+        peak_signal = detrend_emg(emg, window=detrend_window, viz_flag=False)  # window=window)   #
     else:
         peak_signal = emg.copy()
 
+    # take absolute value of signal (i.e. only look for positive peaks?)
     if abs_flag:
         peak_signal = np.abs(peak_signal)
 
     peaks, _ = signal.find_peaks(peak_signal,
                                  height=(min_height, max_height),
-                                 distance=min_peak_dist)
+                                 distance=min_peak_dist)  # , prominence=(0.1, None))
 
     # extract window around detected peaks (+/- spike window)
     n_pts = emg.size
     spike_list = []
     peaks_new = []
+    recenter_window = int(recenter_window_factor * window)
 
     # loop over detected peaks
     for pk in peaks:
         # get range around current peak
         if (pk - window) < 0 or (pk + window) > n_pts:
             continue
-        # spike_ind_init = range(pk - int(window/4), pk + int(window/4))
-        spike_ind_init = range(pk - int(window), pk + int(window))
+
+        spike_ind_init = range(pk - recenter_window, pk + recenter_window)  # /4
+        # spike_ind_init = range(pk - int(window), pk + int(window))
 
         # recenter to max value
-        pk_new = spike_ind_init[np.argmax(emg[spike_ind_init])]
-        # pk_new = spike_ind_init[np.argmin(emg[spike_ind_init])]
-        if (pk_new == spike_ind_init[0]) or (pk_new == spike_ind_init[-1]):
+        pk_new = spike_ind_init[np.argmax(peak_signal[spike_ind_init])]
+        # # pk_new = spike_ind_init[np.argmin(emg[spike_ind_init])]
+        if ((pk_new == spike_ind_init[0]) or (pk_new == spike_ind_init[-1])) and remove_edge_case_flag:
             # if our recentering takes us to the edge of the window, we're probably not on a peak
             continue
         spike_ind = range(pk_new - window + offset, pk_new + window + offset)
@@ -616,9 +671,9 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
     pseudo_z = (spike_max - spike_max_median) / spike_max_mad
     rm_idx = np.abs(pseudo_z) > 25  # kind of arbitrary high threshold
 
-    # do removal
-    spikes = spikes[~rm_idx, :]
-    peaks = peaks[~rm_idx]
+    # # do removal
+    # spikes = spikes[~rm_idx, :]
+    # peaks = peaks[~rm_idx]
 
     # remove spikes based on first portions of the waveform?
     if rm_spikes_flag:
@@ -655,6 +710,52 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
 
 
 # ---------------------------------------------------------------------------------
+def detect_spikes_interactive(emg, fs, window=EMG_WINDOW_POWER,
+                              offset=EMG_OFFSET_POWER, min_spike_dt=MIN_SPIKE_DT,
+                              thresh_factors=THRESH_FACTORS_POWER,
+                              recenter_window_factor=RECENTER_WINDOW_FACTOR,
+                              detrend_window=4*EMG_WINDOW_POWER, thresh_vals=None,
+                              rm_spikes_flag=False, abs_flag=False, viz_flag=False,
+                              detrend_flag=False,
+                              remove_edge_case_flag=REMOVE_EDGE_CASE_FLAG):
+    """
+    *UNDER CONSTRUCTION*
+
+    Function to generate an interactive plot window that can be used for adjusting
+    spike detection parameters
+
+    """
+    # calculate threshold for spike detection using median absolute deviation
+    mad = np.median(np.abs(emg - np.median(emg)))
+
+    # want a really permissive threshold here, so that the slider has a large range
+    thresh = mad / 0.6745  # 0.6745 is the factor relating median absolute deviation to sd
+
+    # do first-pass spike location estimate using peak detection
+    min_peak_dist = np.round(fs * min_spike_dt)
+    min_height = thresh  # 2*
+    max_height = 25*thresh  # 8*
+
+    # detrend data? i.e. try to remove baseline fluctuations
+    if detrend_flag:
+        peak_signal = detrend_emg(emg, window=detrend_window)  # window=window)   #
+    else:
+        peak_signal = emg.copy()
+
+    # take absolute value of signal (i.e. only look for positive peaks?)
+    if abs_flag:
+        peak_signal = np.abs(peak_signal)
+
+    # not really all peaks, but this corresponds to most permissive threshold
+    peaks_all, props_all = signal.find_peaks(peak_signal,
+                                             height=(min_height, max_height),
+                                             distance=min_peak_dist)
+
+    # now set initial value for threshold
+
+    #
+
+# ---------------------------------------------------------------------------------
 def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
                    cluster_num=None, max_clust=8, viz_flag=False):
     """
@@ -671,7 +772,9 @@ def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
         max_clust: maximum cluster number to check
         viz_flag: bool, visualize clusters in final clustering?
 
-    Returns: cluster_labels, labels giving cluster ID for each spike
+    Returns:
+        cluster_labels: labels giving cluster ID for each spike
+        cluster_dict: dictionary containing cluster info
 
     """
     # do PCA on spike waveforms to make clustering less expensive
@@ -681,6 +784,9 @@ def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
 
     if spike_t is None:
         spike_t = np.arange(spikes.shape[1])
+
+    # initialize storage for all clusterings
+    cluster_dict = dict()
 
     # try evaluating cluster numbers?
     if cluster_num is None:
@@ -719,6 +825,9 @@ def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
             ax_list[ith].set_ylabel('emg (V)', fontsize=12);
             ax_list[ith].set_title('clustering for n={}'.format(n_clusters), fontsize=14)
 
+            # store te current clustering in cluster_dict
+            cluster_dict[n_clusters] = cluster_labels
+
         # add final plot for silhouette scores
         ax_list[-1].plot(range_n_clusters, silhouette_avgs)
         ax_list[-1].set_xlabel('Number of clusters', fontsize=12)
@@ -730,9 +839,18 @@ def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
         # get cluster number from scores
         cluster_num = range_n_clusters[np.argmax(silhouette_avgs)]
 
+        # store silhouette scores in cluster_dict
+        cluster_dict['silhouette_avgs'] = silhouette_avgs
+
         # save cluster evaluation results
         if save_path is not None:
-            fig.savefig(os.path.join(save_path, 'clustering_check.png'))
+            cc = 0
+            save_path_full = os.path.join(save_path, f'clustering_check_ch{cc}.png')
+            while os.path.exists(save_path_full):
+                cc += 1
+                save_path_full = os.path.join(save_path, f'clustering_check_ch{cc}.png')
+
+            fig.savefig(save_path_full)
 
         if viz_flag and save_path is None:
             plt.show()
@@ -743,6 +861,11 @@ def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
     clusterer = KMeans(n_clusters=cluster_num, random_state=47, n_init='auto')
     cluster_labels = clusterer.fit_predict(pca_result)
 
+    # put "optimal" cluster number and final clustering in cluster_dict
+    cluster_dict['optimal_cluster_num'] = cluster_num
+    cluster_dict[cluster_num] = cluster_labels
+
+    # visualize?
     if viz_flag:
         # make figure
         fig, ax = plt.subplots()
@@ -760,7 +883,7 @@ def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
         plt.show()
 
     # return results
-    return cluster_labels
+    return cluster_labels, cluster_dict
 
 
 # ---------------------------------------------------------------------------------
@@ -815,7 +938,8 @@ def estimate_spike_rate(spike_idx, fs, n_pts, win_factor=1, viz_flag=False):
 
 
 # ---------------------------------------------------------------------------------
-def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
+def process_abf(filename, muscle_type, species='aedes', params=None,
+                debug_flag=False):
     """
     Combines functions above to do full processing of abf EMG and microphone data
 
@@ -823,13 +947,15 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
         filename: full path to abf file
         muscle_type: string giving muscle recording type ('steer' or 'power')
         species: string giving fly info ('aedes' or 'drosophila')
+        params: dictionary containing analysis parameters. If None, use defaults
         debug_flag: bool, visualize processing steps?
 
     Returns:
 
     """
     # get parameters for current muscle type
-    params = define_params(muscle_type, species=species)
+    if params is None:
+        params = define_params(muscle_type, species=species)
 
     # load abf data
     abf_dict = my_load_abf(filename)
@@ -838,6 +964,25 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
     abf_dict['species'] = species
     abf_dict['muscle_type'] = muscle_type
     abf_dict['filename'] = filename
+
+    # define some params that we want to have different values per species
+    if species == 'drosophila':
+
+        max_wbf = 300
+
+        # window size for detrending emg (if detrend_flag)
+        detrend_window = int(params['emg_window'] / 2)
+
+    elif species == 'aedes':
+        # maximum wingbeat frequency
+        max_wbf = 900
+
+        # window size for detrending emg (if detrend_flag)
+        detrend_window = int(params['emg_window'])  # int(4 * params['emg_window'])
+    else:
+        # not sure what to do for unspecified case
+        max_wbf = 900
+        detrend_window = int(4 * params['emg_window'])
 
     # ---------------------------------
     # filter and process mic signal
@@ -848,30 +993,22 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
     mic_filt = filter_microphone(mic, fs,
                                  lowcut=params['mic_lowcut'],
                                  highcut=params['mic_highcut'],
-                                 viz_flag=debug_flag)
+                                 viz_flag=False)
 
     # estmate wingbeat phase
     mic_phase = estimate_microphone_phase(mic_filt,
-                                          viz_flag=debug_flag)
+                                          viz_flag=False)
 
     # determine periods of non-flight using mic data
     flying_idx = detect_flight_bouts(mic_filt, fs,
-                                     viz_flag=True)  # debug_flag
+                                     viz_flag=debug_flag)  # debug_flag
 
     # get wingbeat frequencies (both mean and per-timestep)
-    if species == 'drosophila':
-        max_wbf = 300
-    elif species == 'aedes':
-        max_wbf = 900
-    else:
-        # not sure what to do for unspecified case
-        max_wbf = 900
-
     wbf_mean = get_wbf_mean(mic_filt, fs, wbf_est_high=max_wbf)
     wbf = get_wbf(mic_filt, fs,
                   nperseg=params['nperseg'],
                   max_wbf=max_wbf,
-                  viz_flag=True)  # debug_flag
+                  viz_flag=debug_flag)  # debug_flag
 
     # add newly calculated stuff to dict
     abf_dict['mic_filt'] = mic_filt
@@ -882,44 +1019,76 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
 
     # ---------------------------------
     # filter and process emg signal
-    emg = abf_dict['emg']
+    # 10/08/24: editing to allow multi-channel processing
+    if type(abf_dict['emg']) is not list:
+        abf_dict['emg'] = list([abf_dict['emg']])
 
-    # filter emg
-    emg_filt = filter_emg(emg, fs, wbf_mean,
-                          lowcut=params['emg_lowcut'],
-                          highcut=params['emg_highcut'],
-                          notch_q=params['notch_q'],
-                          band_type=params['emg_btype'],
-                          viz_flag=debug_flag)
+    # initialize emg content for dictionary
+    abf_dict['emg_filt'] = []
+    abf_dict['spikes'] = []
+    abf_dict['spike_t'] = []
+    abf_dict['spike_idx'] = []
+    abf_dict['spike_rate'] = []
+    abf_dict['cluster_labels'] = []
+    abf_dict['cluster_dict'] = []
 
-    # detect spikes
-    abs_flag = (muscle_type != 'power')  # if looking at power muscles, only look at positive peaks
-    detrend_flag = (muscle_type == 'power')  # if looking at power muscles, detrend signal
-    spikes, spike_t, spike_idx = detect_spikes(emg_filt, fs,   #
-                                               window=params['emg_window'],
-                                               offset=params['emg_offset'],
-                                               min_spike_dt=params['min_spike_dt'],
-                                               thresh_factors=params['thresh_factors'],
-                                               abs_flag=abs_flag,
-                                               detrend_flag=detrend_flag,
-                                               viz_flag=True)  # DEBUG_FLAG
+    for emg in abf_dict['emg']:
+        # filter emg
+        emg_filt = filter_emg(emg, fs, wbf_mean,
+                              lowcut=params['emg_lowcut'],
+                              highcut=params['emg_highcut'],
+                              notch_q=params['notch_q'],
+                              band_type=params['emg_btype'],
+                              viz_flag=False)
 
-    # cluster spikes(?)
-    cluster_labels = cluster_spikes(spikes,
-                                    spike_t=spike_t,
-                                    save_path=os.path.split(abf_path)[0])
+        # detect spikes
+        abs_flag = True  # (muscle_type != 'power')  # if looking at power muscles, only look at positive peaks
+        detrend_flag = (muscle_type == 'power')  # if looking at power muscles, detrend signal
+        spikes, spike_t, spike_idx = detect_spikes(emg_filt, fs,   #
+                                                   window=params['emg_window'],
+                                                   offset=params['emg_offset'],
+                                                   min_spike_dt=params['min_spike_dt'],
+                                                   thresh_factors=params['thresh_factors'],
+                                                   recenter_window_factor=params['recenter_window_factor'],
+                                                   detrend_window=detrend_window,
+                                                   abs_flag=abs_flag,
+                                                   detrend_flag=detrend_flag,
+                                                   remove_edge_case_flag=params['remove_edge_case_flag'],
+                                                   viz_flag=debug_flag)  # DEBUG_FLAG
 
-    # estimate spike rate
-    # TODO: incorporate clustered spikes into this
-    spike_rate = estimate_spike_rate(spike_idx, fs, emg.size,
-                                     viz_flag=debug_flag)
+        # add some of these inputs to params dict for max reproducibility
+        params['detrend_window'] = detrend_window
+        params['abs_flag'] = abs_flag
+        params['detrend_flag'] = detrend_flag
 
-    # add emg content to dictionary
-    abf_dict['emg_filt'] = emg_filt
-    abf_dict['spikes'] = spikes
-    abf_dict['spike_t'] = spike_t
-    abf_dict['spike_idx'] = spike_idx
-    abf_dict['spike_rate'] = spike_rate
+        # cluster spikes(?)
+        cluster_labels, cluster_dict = cluster_spikes(spikes,
+                                                      spike_t=spike_t,
+                                                      save_path=os.path.split(abf_path)[0])
+
+        # estimate spike rate
+        # TODO: incorporate clustered spikes into this
+        spike_rate = estimate_spike_rate(spike_idx, fs, emg.size,
+                                         viz_flag=False)
+
+        # add results for current emg channel to list
+        abf_dict['emg_filt'].append(emg_filt)
+        abf_dict['spikes'].append(spikes)
+        abf_dict['spike_idx'].append(spike_idx)
+        abf_dict['spike_t'].append(spike_t)
+        abf_dict['spike_rate'].append(spike_rate)
+        abf_dict['cluster_labels'].append(cluster_labels)
+        abf_dict['cluster_dict'].append(cluster_dict)
+
+    # for backward compatibility, collapse length 1 lists for these entries
+    emg_dict_keys = ['emg', 'emg_filt', 'spikes', 'spike_t', 'spike_idx', 'spike_rate', 'cluster_labels']
+    for key in emg_dict_keys:
+        if len(abf_dict[key]) == 1:
+            abf_dict[key] = np.squeeze(np.asarray(abf_dict[key]))
+
+    # also collapse non-array fields if needed
+    if len(abf_dict['cluster_dict']) == 1:
+        abf_dict['cluster_dict'] = abf_dict['cluster_dict'][0]
 
     # also add params to dictionary
     abf_dict['params'] = params
@@ -929,23 +1098,74 @@ def process_abf(filename, muscle_type, species='aedes', debug_flag=False):
 
 
 # ---------------------------------------------------------------------------------
-def save_processed_data(filename, abf_dict, file_type='pkl'):
+def reprocess_abf(data_folder, axo_num, data_suffix='_processed',
+                  debug_flag=False):
+    """
+    Function to allow a file to be re-analyzed using the same parameters used
+    previously. Hoping this will be helpful as I adjust things for multichannel
+    data, as I can rerun analyses without having to fiddle with any parameters
+
+    Args:
+        data_folder: folder containing processed data (in form XX_YYYYMMDD).
+            If just a number is given, search for the matching folder index
+        axo_num: per-day index of data file
+        data_suffix: string at the end of processed data file; used to look for
+            correct file type
+        debug_flag: boolean, passed to process_abf
+
+    Returns:
+        data: dictionary containing processed data
+
+    """
+    # load previously analyzed file
+    data_old = load_processed_data(data_folder, axo_num, data_suffix=data_suffix)
+
+    # read params from data file
+    params = data_old['params']
+
+    # get path to .abf file to use for analysis
+    if os.path.exists(data_old['filepath']):
+        # if the old analysis file properly stored the abf path, use that
+        axo_filepath = data_old['filepath']
+    else:
+        # ... otherwise, need to look for it
+        load_filepath = data_old['filepath_load']
+        search_path = os.path.split(load_filepath)[0]
+        search_results = glob.glob(os.path.join(search_path, '*.abf'))
+        if len(search_results) != 1:
+            raise ValueError(f'Could not locate .abf file in {search_path}')
+
+        axo_filepath = search_results[0]
+
+    # re-run analyses
+    data = process_abf(axo_filepath,
+                       data_old['muscle_type'],
+                       species=data_old['species'],
+                       params=params,
+                       debug_flag=debug_flag)
+
+    # return data dict
+    return  data
+
+
+# ---------------------------------------------------------------------------------
+def save_processed_data(filename, abf_dict, file_type='.pkl'):
     """
     Convenience function to save dictionary containing processed abf data to disk
 
     Args:
         filename: full path to save to
         abf_dict: dictionary containing abf data
-        file_type: method for saving data. Currently, 'h5' or 'pkl'
+        file_type: method for saving data. Currently, '.h5' or '.pkl'
 
     Returns: None
     """
     # remove extension from filepath, if we have it
     path, ext = os.path.splitext(filename)
-    savepath = path + '.{}'.format(file_type)
+    savepath = path + f'{file_type}'
 
     # save data
-    if file_type == 'h5':
+    if file_type == '.h5':
         with h5py.File(savepath, 'w') as f:
             for key, entry in abf_dict.items():
                 if isinstance(entry, dict):
@@ -955,7 +1175,7 @@ def save_processed_data(filename, abf_dict, file_type='pkl'):
                 else:
                     f.create_dataset(key, data=entry)
 
-    elif file_type == 'pkl':
+    elif file_type == '.pkl':
         pickle.dump(abf_dict, open(savepath, "wb"))
 
     else:
@@ -1019,10 +1239,12 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '48_20240813'  # '33_20240626'  # '32_20240625'
-    axo_num_list = [0]  # np.arange(30, 34)
+    data_folder = '60_20241031'  # '33_20240626'  # '32_20240625'
+    axo_num_list = np.arange(16)
 
+    # loop over axo files to analyze
     for axo_num in axo_num_list:
+        # get path to .abf (axo) file
         data_path = os.path.join(data_root, data_folder,
                                  '*_{:04d}'.format(axo_num))
         abf_search = glob.glob(os.path.join(data_path, '*.abf'))
@@ -1035,6 +1257,22 @@ if __name__ == "__main__":
         abf_name = Path(abf_path).stem
 
         print('Current data file: \n', abf_path)
+
+        # -----------------------------------------------------------
+        # check if we've already analyzed this folder
+        search_name = abf_path.replace('.abf',
+                                       f'{FILE_SUFFIX}{SAVE_FILE_EXT}')
+
+        # if we can find an old analysis file, re-use it
+        if os.path.exists(search_name) and REUSE_PARAMS_FLAG:
+            # re-analyze data
+            print(f'Re-analyzing {data_folder}, axo {axo_num} with old params')
+            data = reprocess_abf(data_folder, axo_num, data_suffix=FILE_SUFFIX,
+                                 debug_flag=DEBUG_FLAG)
+
+            # if we successfully did this, save and continue
+            save_processed_data(search_name, data, file_type='pkl')
+            continue
 
         # -----------------------------------------------------------
         # get muscle type for current fly
@@ -1089,8 +1327,8 @@ if __name__ == "__main__":
 
         # -----------------------------------------------------------
         # save dictionary containing processed data
-        save_name = abf_path.replace('.abf', '_processed.p')
+        save_name = abf_path.replace('.abf', f'{FILE_SUFFIX}{SAVE_FILE_EXT}')
         # save_path = os.path.join(data_path, save_name)
-        save_processed_data(save_name, data, file_type='pkl')
+        save_processed_data(save_name, data, file_type=SAVE_FILE_EXT)
 
         print('Completed saving: \n {}'.format(save_name))

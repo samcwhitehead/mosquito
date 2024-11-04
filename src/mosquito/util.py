@@ -307,7 +307,7 @@ def set_plot_params(plot_type='paper'):
 
     elif plot_type == 'paper':
         fontsize = 8
-        figsize = (8, 8)
+        figsize = (4, 3)
         subplot_left = 0.2
         subplot_rvight = 0.8
         subplot_top = 0.8
@@ -411,7 +411,7 @@ def my_adjust_axes(ax, keep_spines=['left', 'bottom'], xticks=None, yticks=None,
 
     if 'bottom' in keep_spines:
         ax.xaxis.set_ticks_position('bottom')
-    if 'top' in keep_spines:
+    elif 'top' in keep_spines:
         ax.xaxis.set_ticks_position('top')
     else:
         # no xaxis ticks
@@ -427,6 +427,7 @@ def my_adjust_axes(ax, keep_spines=['left', 'bottom'], xticks=None, yticks=None,
             ticks = yticks
         if loc in ['top', 'bottom']:
             ticks = xticks
+
         if ticks is not None and len(ticks) > 0:
             ax.spines[loc].set_bounds(ticks[0], ticks[-1])
 
@@ -440,9 +441,11 @@ def my_adjust_axes(ax, keep_spines=['left', 'bottom'], xticks=None, yticks=None,
 
             # update tick values in axis
             if loc in ['left', 'right']:
-                ax.yaxis.set_ticks(ticks)
+                # ax.yaxis.set_ticks(ticks)
+                ax.set_yticks(ticks)
             if loc in ['top', 'bottom']:
-                ax.xaxis.set_ticks(ticks)
+                ax.set_xticks(ticks)
+                # ax.xaxis.set_ticks(ticks)
 
     # also just set ticks inward
     ax.tick_params(direction='in', length=tick_length)

@@ -12,10 +12,10 @@ from mosquito.process_abf import load_processed_data
 # Run script
 if __name__ == "__main__":
     # loading separate data for b1 and b2
-    data_folder1 = 50
-    axo_num1 = 21
-    data_folder2 = 48  # 46
-    axo_num2 = 0  # 6
+    data_folder1 = 60
+    axo_num1 = 5
+    data_folder2 = 60  # 46
+    axo_num2 = 9  # 6
 
     # get data files
     try:
@@ -48,10 +48,19 @@ if __name__ == "__main__":
             good_spike_idx = data['spike_idx']
 
         mask = (t >= tmin) & (t <= tmax)
-        mask_spikes = (t[good_spike_idx] >= tmin) & (t[good_spike_idx] <= tmax)
 
-        ax_list[ith].plot(t[mask], emg_filt[mask])
-        ax_list[ith].plot(t[good_spike_idx][mask_spikes], emg_filt[good_spike_idx][mask_spikes], 'rx')
+        if type(good_spike_idx) is list:
+            for idx, sig in zip(good_spike_idx, emg_filt):
+                mask_spikes = (t[idx] >= tmin) & (t[idx] <= tmax)
+
+                ax_list[ith].plot(t[mask], sig[mask])
+                ax_list[ith].plot(t[idx][mask_spikes], sig[idx][mask_spikes], 'x')
+
+        else:
+            mask_spikes = (t[good_spike_idx] >= tmin) & (t[good_spike_idx] <= tmax)
+
+            ax_list[ith].plot(t[mask], emg_filt[mask])
+            ax_list[ith].plot(t[good_spike_idx][mask_spikes], emg_filt[good_spike_idx][mask_spikes], 'rx')
 
 
     fig.tight_layout()

@@ -14,13 +14,11 @@ Code to analyze high-speed and regular video of mosquitoes.
 # ---------------------------------------
 import os
 import glob
-from tabnanny import verbose
-
 import cv2
 
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-from numpy.core.records import record
 
 from scipy.interpolate import UnivariateSpline
 from scipy.signal import find_peaks
@@ -1438,6 +1436,174 @@ def analyze_video(data_folder, axo_num, fly_frame=None, data_suffix='',
     return data, wing_data
 
 
+# --------------------------------------------------------------------------------------
+def fetch_benifly_data(folder_id, axo_num, root_path='/media/sam/SamData/Mosquitoes',
+                       benifly_folder='tracked', subfolder_str='*_{:04d}',
+                       vid_exts=['.mraw', '.avi'], benifly_ext='.csv'):
+    """
+    Convenience function to load tracking data obtained from Benifly (offline Kinefly)
+    https://github.com/bmslpsu/Benifly
+
+    Currently, this gets saved to a CSV file in a separate folder, so I need to load
+    it and synchronize it with other data streams
+
+    Args:
+        folder_id: folder containing processed data (in form XX_YYYYMMDD).
+            If just a number is given, search for the matching folder index
+        axo_num: per-day index of data file
+        root_path: parent folder containing set of experiment folders
+        benifly_folder: name of folder containing tracked benifly CSV files.
+            NB: this is assumed to be in root_path.
+        subfolder_str: format of folder name inside experiment_folder
+        vid_exts: list of extensions for video files
+        benifly_ext: file extension for benifly tracking results
+
+    Returns
+
+    """
+    # ------------------------------------------
+    # Locate video file
+    # ------------------------------------------
+    # check input type -- if it's a two-digit number, search for folder
+    if str(folder_id).isnumeric():
+        expr_folders = [f for f in os.listdir(root_path)
+                        if os.path.isdir(os.path.join(root_path, f))
+                        and f[:2].isdigit()]
+        expr_folder_inds = [int(f.split('_')[0]) for f in expr_folders]
+        expr_folder = expr_folders[expr_folder_inds.index(int(folder_id))]
+    else:
+        expr_folder = folder_id
+
+    # find path to data file, given info
+    search_path = os.path.join(root_path, expr_folder, subfolder_str.format(axo_num))
+    search_results = []
+    for ext in vid_exts:
+        search_results += glob.glob(os.path.join(search_path, f'*/*{ext}'))
+
+    # we actually just need the name of the parent folder
+    vid_folders = [os.path.split(path)[0] for path in search_results]
+    vid_folders = list(set(vid_folders))
+
+    if not len(vid_folders) == 1:
+        raise ValueError(f'Could not locate video file in {search_path}')
+
+    vid_folder = vid_folders[0]
+    vid_folder_name = vid_folder.split(os.sep)[-1]
+
+    # ------------------------------------------
+    # Find tracking file for video
+    # ------------------------------------------
+    track_search_path = os.path.join(vid_folder, benifly_folder,
+                                     f'{vid_folder_name}*{benifly_ext}')
+    search_results = glob.glob(track_search_path)
+
+    if not len(search_results) == 1:
+        raise ValueError(f'Could not locate tracking file in {benifly_search_path}')
+
+    tracking_path = search_results[0]
+
+    # ------------------------------------------
+    # Load tracking data and return
+    # ------------------------------------------
+    tracking_data = pd.read_csv(tracking_path)
+
+    # something about either Benifly or the pandas load adds spaces to column names
+    tracking_data.rename(columns=lambda x: x.strip(), inplace=True)
+
+    return tracking_data
+
+
+# --------------------------------------------------------------------------------------
+def incorporate_benifly_tracking(data_folder, axo_num, data_suffix='',
+                                 axo_data_suffix='_processed',
+                                 smooth_factor=SMOOTH_FACTOR,  save_flag=False):
+    """
+    Function to merge an analyzed axo data file with benifly tracking results,
+    merging and aligning so that we have things on the same time axes
+
+    Args:
+        data_folder: expr folder corresponding to this trial (XX_YYYYMMDD form) or
+            integer (XX)
+        axo_num: number of current trial
+        data_suffix: string, filename suffix to look for when loading video data
+        axo_data_suffix: string, filename suffix to look for when loading axo data
+        smooth_factor:
+        save_flag:
+
+    Returns:
+        data: data dictionary from analysis of axo (ephys) data, now with tracking
+
+    """
+    # load benifly tracking
+    track_data = fetch_benifly_data(data_folder, axo_num)
+
+    # load axo data
+    data = load_processed_data(data_folder, axo_num, data_suffix=axo_data_suffix)
+
+    # read out info from data fields
+    cam = data['cam']
+    t = data['time']
+    fs = data['sampling_freq']
+
+    # get sync output rate
+    _, metadata = load_video_data(data_folder, axo_num, just_return_fps_flag=True)
+    vid_fps = metadata['record_fps']
+
+    cam_idx = idx_by_thresh(cam)
+    cam_idx = np.asarray([idx[0] for idx in cam_idx])
+    cam_freq = fs / np.mean(np.diff(cam_idx))
+
+    # NB: possible values are 0.5, 1, 2, 4, so we need a round step
+    sync_output_rate = round(10 * (cam_freq / vid_fps)) / 10.0
+
+    # align tracking data to axo (ephys) data
+    left_amp, align_idx = align_kinematics_to_cam(track_data['LeftWing'], cam,
+                                                       sync_output_rate=sync_output_rate)
+    right_amp, _        = align_kinematics_to_cam(track_data['RightWing'], cam,
+                                                       sync_output_rate=sync_output_rate)
+
+    # interpolate wing kinematics
+    wing_amps = [left_amp, right_amp]
+    wing_amps_interp = list()
+    wing_sides = ['left', 'right']
+
+    for ith, wing_amp in enumerate(wing_amps):
+        wing_amp_interp = wing_amp.copy()
+        align_nan_idx = np.isnan(wing_amp[align_idx])
+        f_amp = UnivariateSpline(t[align_idx][~align_nan_idx],
+                                wing_amp[align_idx][~align_nan_idx],
+                                s=smooth_factor,
+                                ext=3)  # ext=3 means we extrapolate using boundary vals
+
+        # to preserve nans outside video region, only apply interpolant to small region
+        interp_region = np.arange(align_idx[~align_nan_idx][0],
+                                  align_idx[~align_nan_idx][-1])
+
+        # do interpolation
+        wing_amp_interp[interp_region] = f_amp(t[interp_region])
+
+        # add resulting data to list
+        wing_amps_interp.append(wing_amp_interp)
+
+    # add tracking data to dictionary
+    wing_data = dict()
+    for jth, wing_side in enumerate(wing_sides):
+        wing_data[f'{wing_side}_amp_raw'] = wing_amps[jth]
+        wing_data[f'{wing_side}_amp'] = wing_amps_interp[jth]
+
+    wing_data['record_fps'] = vid_fps
+    wing_data['vid_filepath'] = metadata['filepath']
+
+    data['wing'] = wing_data
+
+    # save?
+    if save_flag:
+        save_processed_data(data['filepath_load'], data)
+
+    # return
+    return data
+
+
 # ---------------------------------------
 # CLASSES
 # ---------------------------------------
@@ -1512,17 +1678,40 @@ class MovingMaxImage:
 # ---------------------------------------
 # MAIN
 # ---------------------------------------
-# Run script
+# Run script (full analysis of a single data file)
 if __name__ == "__main__":
-    # make instance of class
-    fly_frame = FlyFrame()
+    # file to try
+    data_folder = 52
+    axo_num = 5
 
-    # load video to test on
-    return_cap_flag = True
-    cap, _ = load_video_data(50, 27, frame_range=(0, 1500),
-                              return_cap_flag=return_cap_flag)
-    fly_frame.run_video(cap)
-    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    # params
+    save_flag = True
+    verbose_flag = True
+    make_plot_flag = True
+    viz_flag = True
+    bg_window = 20
+    vid_data_suffix = '_processed'  # might be '_processed' for some older videos that needed downsampling
 
-    # run test
-    wing_data = track_video_cap(cap, fly_frame=fly_frame, viz_flag=True)
+    # try loading existing axo analysis
+    try:
+        data = load_processed_data(data_folder, axo_num, data_suffix='_spikes')
+        axo_data_suffix = '_spikes'
+    except ValueError:
+        data = load_processed_data(data_folder, axo_num, data_suffix='_processed')
+        axo_data_suffix = '_processed'
+
+    # try getting extant fly reference frame
+    if 'data' in locals():
+        try:
+            fly_frame = FlyFrame(init_dict=data['wing']['fly_frame'])
+        except KeyError:
+            fly_frame = None
+        del data
+    else:
+        fly_frame = None
+
+    # run analysis
+    # fly_frame = None
+    data, _ = analyze_video(data_folder, axo_num, save_flag=save_flag, bg_window=bg_window, data_suffix=vid_data_suffix,
+                            axo_data_suffix=axo_data_suffix, verbose_flag=verbose_flag, make_plot_flag=make_plot_flag,
+                            fly_frame=fly_frame, viz_flag=viz_flag)
