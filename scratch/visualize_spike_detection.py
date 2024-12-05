@@ -12,10 +12,10 @@ from mosquito.process_abf import load_processed_data
 # Run script
 if __name__ == "__main__":
     # loading separate data for b1 and b2
-    data_folder1 = 60
-    axo_num1 = 5
-    data_folder2 = 60  # 46
-    axo_num2 = 9  # 6
+    data_folder1 = 62
+    axo_num1 = 0
+    data_folder2 = 62  # 46
+    axo_num2 = 1  # 6
 
     # get data files
     try:
@@ -50,7 +50,7 @@ if __name__ == "__main__":
         mask = (t >= tmin) & (t <= tmax)
 
         if type(good_spike_idx) is list:
-            for idx, sig in zip(good_spike_idx, emg_filt):
+            for idx, sig in zip(good_spike_idx, emg):  # zip(good_spike_idx, emg_filt):
                 mask_spikes = (t[idx] >= tmin) & (t[idx] <= tmax)
 
                 ax_list[ith].plot(t[mask], sig[mask])

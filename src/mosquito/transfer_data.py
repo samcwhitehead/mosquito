@@ -83,7 +83,7 @@ def get_jpg_tstamp(jpg_path):
     exif_split = [x for x in exif.split(b'\x00') if not x == b'']
     exif_date = exif_split[-1].decode('utf-8')
     exif_ymd, exif_hms = exif_date.split(' ')
-    exif_date_iso = f'{exif_ymd.replace(':', '-')}T{exif_hms}'
+    exif_date_iso = f'{exif_ymd.replace(":", "-")}T{exif_hms}'
     date_time = datetime.fromisoformat(exif_date_iso)
 
     return date_time.timestamp()
@@ -129,7 +129,8 @@ def get_next_folder_name(folder_date, out_path=out_path):
 
 
 # -------------------------------------------------------------------------
-def deal_files(expr_folder, to_deal_dir, file_type='photron'):
+def deal_files(expr_folder, to_deal_dir, file_type='photron',
+               rename_str=None):
     """
     Convenience function to move files/folders from a single folder into
     corresponding experiment trial folders.
@@ -148,7 +149,8 @@ def deal_files(expr_folder, to_deal_dir, file_type='photron'):
             distributed to trial folders
         file_type: string ('photron', 'google_photos', 'general')
             a hacky way to get timestamps in different ways
-
+        rename_str: string. when we copy files, rename them to whatever
+            rename_str is. if None, don't rename
     """
     # get info on axo files, including date of creation
     axo_dir = sorted(glob.glob(os.path.join(expr_folder, '*', '*.abf')))
@@ -187,7 +189,12 @@ def deal_files(expr_folder, to_deal_dir, file_type='photron'):
         for ind in curr_ind:
             src_path = to_deal_dir[ind]
             src_basename = os.path.basename(src_path)
-            dst_path = os.path.join(axo_folder, src_basename)
+            # do we need to change the destination file name?
+            if rename_str is None:
+                dst_path = os.path.join(axo_folder, src_basename)
+            else:
+                _, src_ext = os.path.splitext(src_basename)
+                dst_path = os.path.join(axo_folder, rename_str + src_ext)
 
             if not os.path.exists(dst_path):
                 print(f'Copying {src_path} \n to {dst_path} ...')
