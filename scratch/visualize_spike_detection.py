@@ -12,10 +12,10 @@ from mosquito.process_abf import load_processed_data
 # Run script
 if __name__ == "__main__":
     # loading separate data for b1 and b2
-    data_folder1 = 62
-    axo_num1 = 0
-    data_folder2 = 62  # 46
-    axo_num2 = 1  # 6
+    data_folder1 = 65
+    axo_num1 = 4
+    data_folder2 = 65  # 46
+    axo_num2 = 4  # 6
 
     # get data files
     try:
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     ax_list.ravel()
 
     tmin = 0
-    tmax = 100
+    tmax = 160
 
     for ith, data in enumerate(data_list):
         t = data['time']
@@ -50,7 +50,7 @@ if __name__ == "__main__":
         mask = (t >= tmin) & (t <= tmax)
 
         if type(good_spike_idx) is list:
-            for idx, sig in zip(good_spike_idx, emg):  # zip(good_spike_idx, emg_filt):
+            for idx, sig in zip(good_spike_idx, emg_filt):  # zip(good_spike_idx, emg_filt):
                 mask_spikes = (t[idx] >= tmin) & (t[idx] <= tmax)
 
                 ax_list[ith].plot(t[mask], sig[mask])
