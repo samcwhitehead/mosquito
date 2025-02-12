@@ -20,12 +20,16 @@ import matplotlib.cm as cm
 from scipy.signal import find_peaks, hilbert
 
 from mosquito.process_abf import (load_processed_data, cluster_spikes, save_processed_data, detect_spikes,
-                                  estimate_spike_rate, detrend_emg, filter_emg)
+                                  estimate_spike_rate, detrend_emg, filter_emg, SAVE_FILE_EXT)
 
 
 # ---------------------------------------
 # PARAMS
 # ---------------------------------------
+# save data?
+SAVE_FLAG = True
+SAVE_FILE_EXT = '.pkl'
+
 # region of spike window to use for re-clustering
 TRIM_IDX = np.arange(1400, 2100)
 
@@ -322,22 +326,238 @@ def split_spike_cluster(spike_idx, emg_signal):
 
 
 # ---------------------------------------------------------------------------------
-def run_sorting_on_file(data, ):
+def run_sorting_on_file(data, min_spike_rate=MIN_SPIKE_RATE, trim_idx=TRIM_IDX,
+                        viz_flag=False):
     """
     Wrapper function to do all the stuff from above on a data file
     (should just be stuff from jupyter notebook)
 
     Args:
         data: typical data dictionary returned by process_abf.py
-
+        min_spike_rate: guess for the minumum spike rate of a cell, in Hz
+        trim_idx: indices in window of spikes to take for re-clustering.
+            this is an input to identify_spikes
+        viz_flag: bool. if true, generate plots
 
     Returns:
 
 
+    TODO: species specific minimum spike rate?
     """
+    # ---------------------------
+    # Read data
+    # ---------------------------
+    fs = data['sampling_freq']  # sampling frequency for data, in Hz
+    t = data['time']  # time in seconds
+    flying_idx = data['flying_idx']  # indices for times steps when fly flies
+    emg_filt = data['emg_filt']  # list whose entries are arrays of filtered emg
+    spikes = data['spikes']  # list whose entries are arrays of time aligned spikes
+    spike_idx = data['spike_idx']  # list whose entries are indices for spike times
+
+    # get the number of channels in the current data file
+    n_channels = len(spikes)
+
+    # ---------------------------
+    # Identify real units
+    # ---------------------------
+    # determine the minimum number of spikes we would expect from a real unit
+    flight_duration = np.sum(flying_idx) / fs
+    n_spikes_threshold = np.floor(min_spike_rate*flight_duration)
+
+    # initialize storage for re-clustered units
+    unit_values_list = list()
+    unit_spike_idx_list = list()
+    cluster_dict_new_list = list()
+
+    # loop over channels and pull out likely real units
+    for channel in range(n_channels):
+        # estimate spikes corresponding to real units
+        unit_values, unit_spike_idx, cluster_dict_new = identify_units(spikes[channel],
+                                                                       spike_idx[channel],
+                                                                       n_spikes_threshold,
+                                                                       trim_idx=trim_idx,
+                                                                       viz_flag=viz_flag)
+
+        # store
+        unit_values_list.append(unit_values)
+        unit_spike_idx_list.append(unit_spike_idx)
+        cluster_dict_new_list.append(cluster_dict_new)
+
+    # ---------------------------
+    # Split clusters (if needed)
+    # ---------------------------
+    # get the number of spikes for each of these units. then, we'll look for units with
+    # anomalously high spike numbers
+    n_spikes_all = [unit_idx.size for unit_spike_idx in unit_spike_idx_list
+                    for unit_idx in unit_spike_idx]
+    if len(n_spikes_all) == 2:
+        n_spikes_baseline = np.min(n_spikes_all)
+    else:
+        n_spikes_baseline = np.median(n_spikes_all)
+
+    # loop over units and see if any of them need to be/can be split
+    for channel in range(n_channels):
+        for ith, unit_idx in enumerate(unit_spike_idx_list[channel]):
+            # test spike count
+            n_spike_check = round(unit_idx.size / n_spikes_baseline)
+            if n_spike_check == 2:
+                # split cluster
+                print(f'Splitting cluster for channel {channel}, unit {ith}')
+                unit_idx_new = split_spike_cluster(unit_idx, emg_filt[channel])
+
+                # update unit_spike_idx_list
+                unit_spike_idx_list[channel].remove(unit_idx)
+                unit_spike_idx_list[channel][ith:ith] = unit_idx_new
+
+                # also update list of unit values (aka cluster values for these units)
+                unit_values_list[channel] = np.insert(unit_values_list[channel], ith, ith)
+
+    # ---------------------------
+    # Sort units by magnitude
+    # ---------------------------
+    # initialize some storage
+    unit_magnitudes_list = list()
+    unit_values_list_new = list()
+    unit_spike_idx_list_new = list()
+
+    # loop over channels
+    for channel in range(n_channels):
+        # read out current data
+        unit_values = unit_values_list[channel]
+        unit_spike_idx = unit_spike_idx_list[channel]
+
+        # re-order units by magnitude before storing
+        if unit_values.size > 1:
+            unit_spike_idx, unit_magnitudes, unit_values = sort_units(unit_spike_idx,
+                                                                      emg_filt[channel],
+                                                                      unit_values)
+        else:
+            unit_magnitudes = [np.mean(emg_filt[channel][unit_spike_idx[0]])]
+
+        # write data to new lists
+        unit_magnitudes_list.append(unit_magnitudes)
+        unit_values_list_new.append(unit_values)
+        unit_spike_idx_list_new.append(unit_spike_idx)
+
+    # overwrite old lists with new ones
+    unit_values_list = unit_values_list_new
+    unit_spike_idx_list = unit_spike_idx_list_new
+
+    # ---------------------------
+    # Check for small spikes
+    # ---------------------------
+    # sometimes smaller units are masked by larger ones, which throws off analyses
+    ref_ind = 0  # index in lists for channel reference unit (the big one). Should be 0
+    unit_spike_idx_list_new = list()
+
+    for channel in range(n_channels):
+        # initialize per-channel storage
+        unit_spike_idx_new = list()
+
+        # get the indices of the current units (NB: this is still a list of arrays)
+        unit_spike_idx = unit_spike_idx_list[channel]
+
+        # get the number of spikes for each unit
+        n_spikes = [idx.size for idx in unit_spike_idx]
+
+        # store unit 0 spikes
+        unit_spike_idx_new.append(unit_spike_idx[0])
+
+        # check if the smaller unit has many fewer detected spikes than the larger one
+        for unit_num in range(1, len(n_spikes)):
+            if (n_spikes[0] - n_spikes[unit_num]) > 5:
+                # print(f'we need to check channel {channel}, unit {unit_num} for missing spikes')
+                # find indices to search around for spikes
+                missing_spike_idx = locate_missing_spike_idx(unit_spike_idx[unit_num],
+                                                             unit_spike_idx[ref_ind],
+                                                             t)
+
+                # guess small unit timing around those holes in the time series
+                small_amp = unit_magnitudes_list[channel][unit_num]
+                large_amp = unit_magnitudes_list[channel][ref_ind]
+                window_size = round(0.5 * np.mean(np.diff(unit_spike_idx[0])))
+                new_spike_idx = find_small_spikes(missing_spike_idx,
+                                                  small_amp,
+                                                  large_amp,
+                                                  window_size,
+                                                  emg_filt[channel])
+
+                # store results
+                new_spike_idx_all = np.sort(np.hstack((new_spike_idx,
+                                                       unit_spike_idx[unit_num].copy())))
+                unit_spike_idx_new.append(new_spike_idx_all)
+
+            else:
+                # otherwise just store a copy of the indices we already have
+                unit_spike_idx_new.append(unit_spike_idx[unit_num].copy())
+
+        # append per-channel list to across channel list
+        unit_spike_idx_list_new.append(unit_spike_idx_new)
+
+    # visualize the newly located small spikes?
+    if viz_flag:
+        # initialize figure and axes
+        fig, ax_list = plt.subplots(n_channels, 1, figsize=(12, 7), sharex=True)
+        ax_list = ax_list.ravel()
+
+        # loop over channels
+        for channel in range(n_channels):
+            # plot emg signal
+            ax_list[channel].plot(t, emg_filt[channel])
+
+            # loop over units
+            for unit_num, unit_spike_idx in enumerate(unit_spike_idx_list[channel]):
+                # skip the large first unit
+                if unit_num == 0:
+                    continue
+
+                # plot old spikes for small unit
+                ax_list[channel].plot(t[unit_spike_idx],
+                                      emg_filt[channel][unit_spike_idx],
+                                      marker='x',
+                                      linestyle='none',
+                                      label='old')
+
+                # plot new spikes for small unit
+                ax_list[channel].plot(t[unit_spike_idx_list_new[channel][unit_num]],
+                                      emg_filt[channel][unit_spike_idx_list_new[channel][unit_num]],
+                                      marker='o',
+                                      markerfacecolor='none',
+                                      linestyle='none',
+                                      label='new')
+
+            # make legend
+            ax_list[channel].legend()
+
+        # display plot
+        plt.show()
+
+    # ---------------------------
+    # Add to data dict
+    # ---------------------------
+    data['sorted_units'] = unit_spike_idx_list
+    data['sorted_units_estimate'] = unit_spike_idx_list_new
+
+    return data
+
 
 # ---------------------------------------
 # MAIN
 # ---------------------------------------
 if __name__ == "__main__":
-    pass
+    # TEMP -- try an example data file
+    # load data file
+    data_folder = 63  # 66 # 65
+    axo_num = 7  # 1  # 4
+
+    data = load_processed_data(data_folder, axo_num)
+
+    # run analyses
+    data = run_sorting_on_file(data, viz_flag=True)
+
+    # save results?
+    if SAVE_FLAG:
+        current_path = data['filepath_load']
+        save_path, _ = os.path.splitext(current_path)
+        save_path += '_sort' + SAVE_FILE_EXT
+        save_processed_data(save_path, data, file_type=SAVE_FILE_EXT)

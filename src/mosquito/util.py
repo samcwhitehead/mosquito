@@ -306,13 +306,13 @@ def set_plot_params(plot_type='paper'):
         axis_linewidth = 1.5
 
     elif plot_type == 'paper':
-        fontsize = 8
+        fontsize = 6
         figsize = (4, 3)
         subplot_left = 0.2
         subplot_rvight = 0.8
         subplot_top = 0.8
         subplot_bottom = 0.2
-        axis_linewidth = 1
+        axis_linewidth = 0.75
 
     fig_params = {
           'font.family': 'sans-serif',

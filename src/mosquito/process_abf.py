@@ -66,7 +66,7 @@ EMG_HIGHCUT_POWER_DROSOPHILA = 10000  # 2000  # higher cutoff frequency for musc
 EMG_BTYPE_POWER = 'bandpass'  # butter filter type (bandpass or bandstop)
 EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
 EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
-THRESH_FACTORS_POWER = (0.45, 25)   # (1.5, 15)  # factors multiplied by thresh in spike peak detection
+THRESH_FACTORS_POWER = (1.5, 25)  # (0.45, 25)   # (1.5, 15)  # factors multiplied by thresh in spike peak detection
 
 # emg filter params - STEERING
 EMG_LOWCUT_STEER = 300  # 550  # 300  # 700
@@ -967,7 +967,7 @@ def process_abf(filename, muscle_type, species='aedes', params=None,
 
     # define some params that we want to have different values per species
     if species == 'drosophila':
-
+        # maximum wingbeat frequency
         max_wbf = 300
 
         # window size for detrending emg (if detrend_flag)
@@ -1239,8 +1239,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '62_20241108'  # '33_20240626'  # '32_20240625'
-    axo_num_list = np.arange(3)
+    data_folder = '67_20250205'  # '33_20240626'  # '32_20240625'
+    axo_num_list = [8]  #
 
     # loop over axo files to analyze
     for axo_num in axo_num_list:

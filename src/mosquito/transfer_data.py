@@ -144,7 +144,7 @@ def deal_files(expr_folder, to_deal_dir, file_type='photron',
 
     Args:
         expr_folder: path to experiment folder containing axo (.abf) files
-            should look like "XX_YYYMMDD"
+            should look like "XX_YYYYMMDD"
         to_deal_dir: directory list containing files that need to be
             distributed to trial folders
         file_type: string ('photron', 'google_photos', 'general')
@@ -169,7 +169,6 @@ def deal_files(expr_folder, to_deal_dir, file_type='photron',
     else:
         # if we're not doing anything special, just get creation time
         to_deal_tstamps = [os.path.getctime(file_path) for file_path in to_deal_dir]
-
 
     # turn the axo time stamps into bins, which we can use to sort files
     axo_bins = axo_creation_times.copy()
