@@ -1498,7 +1498,7 @@ def fetch_benifly_data(folder_id, axo_num, root_path='/media/sam/SamData/Mosquit
     search_results = glob.glob(track_search_path)
 
     if not len(search_results) == 1:
-        raise ValueError(f'Could not locate tracking file in {benifly_search_path}')
+        raise ValueError(f'Could not locate tracking file in {track_search_path}')
 
     tracking_path = search_results[0]
 
@@ -1681,8 +1681,8 @@ class MovingMaxImage:
 # Run script (full analysis of a single data file)
 if __name__ == "__main__":
     # file to try
-    data_folder = 52
-    axo_num = 5
+    data_folder = 80
+    axo_num = 3
 
     # params
     save_flag = True
@@ -1690,7 +1690,7 @@ if __name__ == "__main__":
     make_plot_flag = True
     viz_flag = True
     bg_window = 20
-    vid_data_suffix = '_processed'  # might be '_processed' for some older videos that needed downsampling
+    vid_data_suffix = ''  # '_processed'  # might be '_processed' for some older videos that needed downsampling
 
     # try loading existing axo analysis
     try:

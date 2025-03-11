@@ -231,7 +231,8 @@ if __name__ == "__main__":
 
     # ----------------------------------------------
     # get info associated with these files
-    axo_creation_times = [os.path.getctime(adm) for adm in axo_dir_match]
+    axo_creation_times = [get_abf_tstamp(adm) for adm in axo_dir_match]
+    # axo_mod_times = [os.path.getmtime(adm) for adm in axo_dir_match]
 
     # ----------------------------------------------
     # get video file info
@@ -253,6 +254,7 @@ if __name__ == "__main__":
     # ----------------------------------------------
     # get indices for matching vids to axo
     axo_bins = axo_creation_times.copy()
+    # axo_bins = axo_mod_times.copy()
     final_abf = pyabf.ABF(axo_dir_match[-1])
     final_abf_duration = final_abf.dataLengthSec
     axo_bins.append(final_abf_duration + axo_bins[-1] + 300)  # adding a little padding to get snapshots, etc

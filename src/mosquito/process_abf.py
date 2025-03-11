@@ -66,19 +66,20 @@ EMG_HIGHCUT_POWER_DROSOPHILA = 10000  # 2000  # higher cutoff frequency for musc
 EMG_BTYPE_POWER = 'bandpass'  # butter filter type (bandpass or bandstop)
 EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
 EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
-THRESH_FACTORS_POWER = (1.5, 25)  # (0.45, 25)   # (1.5, 15)  # factors multiplied by thresh in spike peak detection
+THRESH_FACTORS_POWER = (2.0, 15)  # (0.45, 25)   # (1.5, 15)  # factors multiplied by thresh in spike peak detection
 
 # emg filter params - STEERING
-EMG_LOWCUT_STEER = 300  # 550  # 300  # 700
+EMG_LOWCUT_STEER = 700  # 550  # 300  # 700
 EMG_HIGHCUT_STEER = 10000
 EMG_BTYPE_STEER = 'bandpass'
 EMG_WINDOW_STEER = 32  # 32
 EMG_OFFSET_STEER = 4
-THRESH_FACTORS_STEER = (0.55, 4)  # (0.75, 4.0)  # (0.5, 4) # (0.35, 0.7)  # (0.65, 8)
+THRESH_FACTORS_STEER = (1.5, 4)  # (0.55, 4)  # (0.75, 4.0)  # (0.5, 4) # (0.35, 0.7)  # (0.65, 8)
 
 # general spike detection
 REMOVE_EDGE_CASE_FLAG = True  # normally True
-RECENTER_WINDOW_FACTOR = 0.125/2  # 0.125  # 0.125  # normally 1, but smaller lets us detect small nearby spikes
+RECENTER_WINDOW_FACTOR_POWER = 0.125/2  # 0.125  # 0.125  # normally 1, but smaller lets us detect small nearby spikes
+RECENTER_WINDOW_FACTOR_STEER = 1  #
 
 # general emg filter params
 NOTCH_Q = 2.0  # quality factor for iir notch filter
@@ -115,7 +116,8 @@ def define_params(muscle_type,
                   emg_offset_steer=EMG_OFFSET_STEER,
                   thresh_factors_steer=THRESH_FACTORS_STEER,
                   remove_edge_case_flag=REMOVE_EDGE_CASE_FLAG,
-                  recenter_window_factor=RECENTER_WINDOW_FACTOR,
+                  recenter_window_factor_power=RECENTER_WINDOW_FACTOR_POWER,
+                  recenter_window_factor_steer=RECENTER_WINDOW_FACTOR_STEER,
                   ):
     """
     Convenience function to create a dictionary containing different processing
@@ -137,7 +139,6 @@ def define_params(muscle_type,
     params['nperseg'] = nperseg
     params['notch_q'] = notch_q
     params['min_spike_dt'] = min_spike_dt
-    params['recenter_window_factor'] = recenter_window_factor
     params['remove_edge_case_flag'] = remove_edge_case_flag
 
     # get mic parameters based on species
@@ -156,6 +157,7 @@ def define_params(muscle_type,
         params['emg_window'] = emg_window_steer
         params['emg_offset'] = emg_offset_steer
         params['thresh_factors'] = thresh_factors_steer
+        params['recenter_window_factor'] = recenter_window_factor_steer
 
     elif muscle_type == 'power':
         if species == 'drosophila':
@@ -168,6 +170,11 @@ def define_params(muscle_type,
         params['emg_window'] = emg_window_power
         params['emg_offset'] = emg_offset_power
         params['thresh_factors'] = thresh_factors_power
+
+        if species == 'drosophila':
+            params['recenter_window_factor'] = 2*recenter_window_factor_power
+        else:
+            params['recenter_window_factor'] = recenter_window_factor_power
 
     else:
         print('unknown muscle type provided to define_params')
@@ -238,6 +245,75 @@ def my_load_abf(filename, print_flag=False):
         print(abf_dict['header'])
 
     return abf_dict
+
+
+# ---------------------------------------------------------------------------------
+def trim_data_dict(data, t_range):
+    """
+    Function to trim the time series data contained in dictionary 'data' to
+    restrict it to a time range 't_range'. This should help with cases where
+    we have disruptions towards the start or end of files, e.g. when touching
+    the mouse to stop data collection causes a spike in the electrode signal
+
+    Args:
+        data: data dictionary produced by process_abf
+        t_range: tuple giving start and end, in seconds, of the time range to
+            trim data to
+
+    Returns:
+        data: trimmed data structure
+    """
+    # read out time values from untrimmed data
+    t = data['time']
+    trim_idx = (t >= t_range[0]) & (t <= t_range[1])
+
+    # list of data keys that have a value at every sampling time point
+    t_series_keys = ['emg', 'cam', 'mic', 'odor', 'mic_filt', 'mic_phase',
+                     'wbf', 'flying_idx', 'emg_filt', 'spike_rate', 'time']
+
+    # loop through these time series variables and trim to new time range
+    for key in t_series_keys:
+        if isinstance(data[key], list):
+            for ith, _ in enumerate(data[key]):
+                data[key][ith] = data[key][ith][trim_idx]
+        else:
+            data[key] = data[key][trim_idx]
+
+    # also need to deal with spike indices
+    spike_idx_list = data['spike_idx']
+    spikes_list = data['spikes']
+    cluster_labels_list = data['cluster_labels']
+    cluster_dict_list = data['cluster_dict']
+
+    # backwards compatibility with old single channel data
+    if not isinstance(spike_idx_list, list):
+        spike_idx_list = [spike_idx_list]
+        spikes_list = [spikes_list]
+        cluster_labels_list = [cluster_labels_list]
+        cluster_dict_list = [cluster_dict_list]
+
+    for ith, spike_idx in enumerate(spike_idx_list):
+        # which spikes to keep
+        trim_idx_spikes = ((t[spike_idx] >= t_range[0]) &
+                           (t[spike_idx] <= t_range[1]))
+
+        # trim values
+        spikes_list[ith] = spikes_list[ith][trim_idx_spikes, :]
+        cluster_labels_list[ith] = cluster_labels_list[ith][trim_idx_spikes]
+        for cluster_key in cluster_dict_list[ith].keys():
+            if str(cluster_key).isdigit():
+                cluster_dict_list[ith][cluster_key] = (
+                    cluster_dict_list)[ith][cluster_key][trim_idx_spikes]
+
+        spike_idx_list[ith] = spike_idx_list[ith][trim_idx_spikes]
+
+    # add these lists back into data dict
+    data['spike_idx'] = spike_idx_list
+    data['spikes'] = spikes_list
+    data['cluster_labels'] = cluster_labels_list
+    data['cluster_dict'] = cluster_dict_list
+
+    return data
 
 
 # ---------------------------------------------------------------------------------
@@ -554,7 +630,7 @@ def detrend_emg(emg, window=4*EMG_WINDOW_POWER, viz_flag=False):
 # ---------------------------------------------------------------------------------
 def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
                   min_spike_dt=MIN_SPIKE_DT, thresh_factors=THRESH_FACTORS_POWER,
-                  recenter_window_factor=RECENTER_WINDOW_FACTOR,
+                  recenter_window_factor=RECENTER_WINDOW_FACTOR_POWER,
                   detrend_window=4*EMG_WINDOW_POWER, thresh_vals=None,
                   rm_spikes_flag=False, abs_flag=False, viz_flag=False,
                   detrend_flag=False, remove_edge_case_flag=REMOVE_EDGE_CASE_FLAG):
@@ -641,7 +717,7 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
 
         # recenter to max value
         pk_new = spike_ind_init[np.argmax(peak_signal[spike_ind_init])]
-        # # pk_new = spike_ind_init[np.argmin(emg[spike_ind_init])]
+        # pk_new = spike_ind_init[np.argmin(emg[spike_ind_init])]
         if ((pk_new == spike_ind_init[0]) or (pk_new == spike_ind_init[-1])) and remove_edge_case_flag:
             # if our recentering takes us to the edge of the window, we're probably not on a peak
             continue
@@ -713,7 +789,7 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
 def detect_spikes_interactive(emg, fs, window=EMG_WINDOW_POWER,
                               offset=EMG_OFFSET_POWER, min_spike_dt=MIN_SPIKE_DT,
                               thresh_factors=THRESH_FACTORS_POWER,
-                              recenter_window_factor=RECENTER_WINDOW_FACTOR,
+                              recenter_window_factor=RECENTER_WINDOW_FACTOR_POWER,
                               detrend_window=4*EMG_WINDOW_POWER, thresh_vals=None,
                               rm_spikes_flag=False, abs_flag=False, viz_flag=False,
                               detrend_flag=False,
@@ -754,6 +830,7 @@ def detect_spikes_interactive(emg, fs, window=EMG_WINDOW_POWER,
     # now set initial value for threshold
 
     #
+
 
 # ---------------------------------------------------------------------------------
 def cluster_spikes(spikes, spike_t=None, save_path=None, pca_n_comp=20,
@@ -938,8 +1015,8 @@ def estimate_spike_rate(spike_idx, fs, n_pts, win_factor=1, viz_flag=False):
 
 
 # ---------------------------------------------------------------------------------
-def process_abf(filename, muscle_type, species='aedes', params=None,
-                debug_flag=False):
+def process_abf(filename, muscle_type, species='aedes', channel_process_idx=None,
+                params=None, debug_flag=False):
     """
     Combines functions above to do full processing of abf EMG and microphone data
 
@@ -947,6 +1024,8 @@ def process_abf(filename, muscle_type, species='aedes', params=None,
         filename: full path to abf file
         muscle_type: string giving muscle recording type ('steer' or 'power')
         species: string giving fly info ('aedes' or 'drosophila')
+        channel_process_idx: list of boolean values, with one entry per channel.
+            Tells us which channels we can ignore (if False). If None, process all
         params: dictionary containing analysis parameters. If None, use defaults
         debug_flag: bool, visualize processing steps?
 
@@ -1032,7 +1111,16 @@ def process_abf(filename, muscle_type, species='aedes', params=None,
     abf_dict['cluster_labels'] = []
     abf_dict['cluster_dict'] = []
 
-    for emg in abf_dict['emg']:
+    # check which channels to process
+    if channel_process_idx is None:
+        channel_process_idx = [True for emg in abf_dict['emg']]
+
+    # loop over channels
+    for process_flag, emg in zip(channel_process_idx, abf_dict['emg']):
+        # check that this is a file we want to analyze
+        if process_flag is False:
+            continue
+
         # filter emg
         emg_filt = filter_emg(emg, fs, wbf_mean,
                               lowcut=params['emg_lowcut'],
@@ -1042,8 +1130,9 @@ def process_abf(filename, muscle_type, species='aedes', params=None,
                               viz_flag=False)
 
         # detect spikes
-        abs_flag = (muscle_type != 'power')  # if looking at power muscles, only look at positive peaks
+        abs_flag = False  # (muscle_type != 'power')  # if looking at power muscles, only look at positive peaks
         detrend_flag = (muscle_type == 'power')  # if looking at power muscles, detrend signal
+
         spikes, spike_t, spike_idx = detect_spikes(emg_filt, fs,   #
                                                    window=params['emg_window'],
                                                    offset=params['emg_offset'],
@@ -1061,15 +1150,24 @@ def process_abf(filename, muscle_type, species='aedes', params=None,
         params['abs_flag'] = abs_flag
         params['detrend_flag'] = detrend_flag
 
-        # cluster spikes(?)
-        cluster_labels, cluster_dict = cluster_spikes(spikes,
-                                                      spike_t=spike_t,
-                                                      save_path=os.path.split(abf_path)[0])
+        # check that we have enough spikes
+        n_spikes = spike_idx.size
+        if n_spikes < 20:
+            # if we have very few spikes, just fill in None values
+            cluster_labels = None
+            cluster_dict = None
+            spike_rate = None
 
-        # estimate spike rate
-        # TODO: incorporate clustered spikes into this
-        spike_rate = estimate_spike_rate(spike_idx, fs, emg.size,
-                                         viz_flag=False)
+        else:
+            # cluster spikes(?)
+            cluster_labels, cluster_dict = cluster_spikes(spikes,
+                                                          spike_t=spike_t,
+                                                          save_path=os.path.split(abf_path)[0])
+
+            # estimate spike rate
+            # TODO: incorporate clustered spikes into this
+            spike_rate = estimate_spike_rate(spike_idx, fs, emg.size,
+                                             viz_flag=False)
 
         # add results for current emg channel to list
         abf_dict['emg_filt'].append(emg_filt)
@@ -1145,7 +1243,7 @@ def reprocess_abf(data_folder, axo_num, data_suffix='_processed',
                        debug_flag=debug_flag)
 
     # return data dict
-    return  data
+    return data
 
 
 # ---------------------------------------------------------------------------------
@@ -1163,6 +1261,10 @@ def save_processed_data(filename, abf_dict, file_type='.pkl'):
     # remove extension from filepath, if we have it
     path, ext = os.path.splitext(filename)
     savepath = path + f'{file_type}'
+
+    # make sure file_type has a leading period
+    if not file_type[0] == '.':
+        file_type = f'.{file_type}'
 
     # save data
     if file_type == '.h5':
@@ -1239,8 +1341,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '67_20250205'  # '33_20240626'  # '32_20240625'
-    axo_num_list = [8]  #
+    data_folder = '83_20250310'  # '33_20240626'  # '32_20240625'
+    axo_num_list = np.arange(2, 5)  #
 
     # loop over axo files to analyze
     for axo_num in axo_num_list:
@@ -1271,7 +1373,8 @@ if __name__ == "__main__":
                                  debug_flag=DEBUG_FLAG)
 
             # if we successfully did this, save and continue
-            save_processed_data(search_name, data, file_type='pkl')
+            save_processed_data(search_name, data, file_type='.pkl')
+            # save_processed_data(search_name.replace(FILE_SUFFIX, '_redo'), data, file_type='.pkl')
             continue
 
         # -----------------------------------------------------------
@@ -1284,6 +1387,11 @@ if __name__ == "__main__":
         muscle_type = muscle_type.strip()
         if not muscle_type == 'power':
             muscle_type = 'steer'
+
+        # also get target muscle -- this will let us skip empty channels
+        target_muscle = log_df.loc[row_idx]['Target Muscle'].values[0]
+        target_muscles = list(target_muscle.split('_'))
+        channel_process_index = [(musc.lower() != 'none') for musc in target_muscles]
 
         # -----------------------------------------------------------
         # try to get species for current fly by reading README
@@ -1322,7 +1430,10 @@ if __name__ == "__main__":
 
         # -----------------------------------------------------------
         # try running analysis
-        data = process_abf(abf_path, muscle_type, species,
+        data = process_abf(abf_path,
+                           muscle_type,
+                           species=species,
+                           channel_process_idx=channel_process_index,
                            debug_flag=DEBUG_FLAG)
 
         # -----------------------------------------------------------

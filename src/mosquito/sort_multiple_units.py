@@ -28,14 +28,15 @@ from mosquito.process_abf import (load_processed_data, cluster_spikes, save_proc
 # ---------------------------------------
 # save data?
 SAVE_FLAG = True
-SAVE_FILE_EXT = '.pkl'
+# SAVE_FILE_EXT = '.pkl'
 
 # region of spike window to use for re-clustering
-TRIM_IDX = np.arange(1400, 2100)
+TRIM_IDX_POWER = np.arange(1400, 2100)
+TRIM_IDX_STEER = np.arange(10, 50)
 
 # smallest spike rate allowed to be called a unit
-MIN_SPIKE_RATE = 0.5  # Hz, will probably depend on species and muscle type!
-
+MIN_SPIKE_RATE_POWER = 0.5  # Hz, will probably depend on species and muscle type!
+MIN_SPIKE_RATE_STEER = 50  # Hz
 
 # ---------------------------------------
 # HELPER FUNCTIONS
@@ -43,7 +44,7 @@ MIN_SPIKE_RATE = 0.5  # Hz, will probably depend on species and muscle type!
 
 # ---------------------------------------------------------------------------------
 def identify_units(spike_array, spike_idx, n_spikes_min,
-                   trim_idx=TRIM_IDX, viz_flag=False):
+                   trim_idx=None, viz_flag=False):
     """
     Function to try estimating which of the detected spikes are noise and
     which are real units. Further, try to separate the detected spikes into
@@ -326,8 +327,8 @@ def split_spike_cluster(spike_idx, emg_signal):
 
 
 # ---------------------------------------------------------------------------------
-def run_sorting_on_file(data, min_spike_rate=MIN_SPIKE_RATE, trim_idx=TRIM_IDX,
-                        viz_flag=False):
+def run_sorting_on_file(data, min_spike_rate=MIN_SPIKE_RATE_POWER,
+                        trim_idx=TRIM_IDX_POWER, viz_flag=False):
     """
     Wrapper function to do all the stuff from above on a data file
     (should just be stuff from jupyter notebook)
@@ -353,6 +354,12 @@ def run_sorting_on_file(data, min_spike_rate=MIN_SPIKE_RATE, trim_idx=TRIM_IDX,
     emg_filt = data['emg_filt']  # list whose entries are arrays of filtered emg
     spikes = data['spikes']  # list whose entries are arrays of time aligned spikes
     spike_idx = data['spike_idx']  # list whose entries are indices for spike times
+
+    # Make sure we have data in multichannel format
+    if not isinstance(emg_filt, list):
+        emg_filt = [emg_filt]
+        spikes = [spikes]
+        spike_idx = [spike_idx]
 
     # get the number of channels in the current data file
     n_channels = len(spikes)
@@ -443,6 +450,30 @@ def run_sorting_on_file(data, min_spike_rate=MIN_SPIKE_RATE, trim_idx=TRIM_IDX,
     unit_values_list = unit_values_list_new
     unit_spike_idx_list = unit_spike_idx_list_new
 
+    # first pass visualization -- did we properly select real units?
+    if viz_flag:
+        # initialize figure and axes
+        fig, ax_list = plt.subplots(n_channels, 1, figsize=(12, 7), sharex=True)
+        if n_channels == 1:
+            ax_list = np.array([ax_list])
+        # ax_list = ax_list.ravel()
+
+        # loop over channels
+        for channel in range(n_channels):
+            # plot emg signal
+            ax_list[channel].plot(t, emg_filt[channel])
+
+            # loop over units
+            for unit_num, unit_spike_idx in enumerate(unit_spike_idx_list[channel]):
+                # plot spikes
+                ax_list[channel].plot(t[unit_spike_idx],
+                                      emg_filt[channel][unit_spike_idx],
+                                      marker='x',
+                                      linestyle='none')
+
+        # display plot
+        plt.show()
+
     # ---------------------------
     # Check for small spikes
     # ---------------------------
@@ -495,10 +526,12 @@ def run_sorting_on_file(data, min_spike_rate=MIN_SPIKE_RATE, trim_idx=TRIM_IDX,
         unit_spike_idx_list_new.append(unit_spike_idx_new)
 
     # visualize the newly located small spikes?
-    if viz_flag:
+    if viz_flag and (len(unit_spike_idx_list[channel]) > 1):
         # initialize figure and axes
         fig, ax_list = plt.subplots(n_channels, 1, figsize=(12, 7), sharex=True)
-        ax_list = ax_list.ravel()
+        if n_channels == 1:
+            ax_list = np.array([ax_list])
+        # ax_list = ax_list.ravel()
 
         # loop over channels
         for channel in range(n_channels):
@@ -547,13 +580,25 @@ def run_sorting_on_file(data, min_spike_rate=MIN_SPIKE_RATE, trim_idx=TRIM_IDX,
 if __name__ == "__main__":
     # TEMP -- try an example data file
     # load data file
-    data_folder = 63  # 66 # 65
-    axo_num = 7  # 1  # 4
+    data_folder = 55  # 66 # 65
+    axo_num = 9  # 1  # 4
 
     data = load_processed_data(data_folder, axo_num)
 
+    # get muscle type
+    muscle_type = data['muscle_type']
+    if muscle_type == 'power':
+        min_spike_rate = MIN_SPIKE_RATE_POWER
+        trim_idx = TRIM_IDX_POWER
+    elif muscle_type == 'steer':
+        min_spike_rate = MIN_SPIKE_RATE_STEER
+        trim_idx = TRIM_IDX_STEER
+
     # run analyses
-    data = run_sorting_on_file(data, viz_flag=True)
+    data = run_sorting_on_file(data,
+                               min_spike_rate=min_spike_rate,
+                               trim_idx=trim_idx,
+                               viz_flag=True)
 
     # save results?
     if SAVE_FLAG:

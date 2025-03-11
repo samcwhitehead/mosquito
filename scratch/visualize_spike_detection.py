@@ -12,10 +12,10 @@ from mosquito.process_abf import load_processed_data
 # Run script
 if __name__ == "__main__":
     # loading separate data for b1 and b2
-    data_folder1 = 65
-    axo_num1 = 4
-    data_folder2 = 65  # 46
-    axo_num2 = 4  # 6
+    data_folder1 = 75
+    axo_num1 = 7
+    data_folder2 = 81  # 46
+    axo_num2 = 3  # 6
 
     # get data files
     try:
@@ -29,7 +29,7 @@ if __name__ == "__main__":
         data2 = load_processed_data(data_folder2, axo_num2)
 
     data_list = [data1, data2]
-    data_labels = ['b1', 'b2']
+    # data_labels = ['b1', 'b2']
 
     # plot emg and spike detection
     fig, ax_list = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
@@ -42,6 +42,7 @@ if __name__ == "__main__":
         t = data['time']
         emg_filt = data['emg_filt']
         emg = data['emg']
+
         try:
             good_spike_idx = data['good_spike_idx']
         except KeyError:
