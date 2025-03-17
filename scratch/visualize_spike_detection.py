@@ -12,10 +12,10 @@ from mosquito.process_abf import load_processed_data
 # Run script
 if __name__ == "__main__":
     # loading separate data for b1 and b2
-    data_folder1 = 75
-    axo_num1 = 7
-    data_folder2 = 81  # 46
-    axo_num2 = 3  # 6
+    data_folder1 = 84  # 82
+    axo_num1 = 2  # 5
+    data_folder2 = 83  # 84  # 46
+    axo_num2 = 2  # 2  # 6
 
     # get data files
     try:

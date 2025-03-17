@@ -25,7 +25,7 @@ from mosquito.transfer_data import deal_files
 # ---------------------------------------
 # where to look for data files
 DATA_ROOT = '/media/sam/SamData/Mosquitoes/'
-EXPR_NAME = '80_20250305'  # which folder to look at
+EXPR_NAME = '84_20250313'  # which folder to look at
 EXPR_FOLDER = os.path.join(DATA_ROOT, EXPR_NAME)
 
 # path to folder of undealt photos

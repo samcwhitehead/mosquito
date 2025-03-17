@@ -32,15 +32,74 @@ SAVE_FLAG = True
 
 # region of spike window to use for re-clustering
 TRIM_IDX_POWER = np.arange(1400, 2100)
-TRIM_IDX_STEER = np.arange(10, 50)
+TRIM_IDX_STEER = np.arange(5, 60)  # np.arange(10, 50)
 
 # smallest spike rate allowed to be called a unit
 MIN_SPIKE_RATE_POWER = 0.5  # Hz, will probably depend on species and muscle type!
-MIN_SPIKE_RATE_STEER = 50  # Hz
+MIN_SPIKE_RATE_STEER = 15  # 50  # Hz
+
+# for just removing a few spikes that look off
+Z_THRESH = 3  # zscore threshold for removal
+
 
 # ---------------------------------------
 # HELPER FUNCTIONS
 # ---------------------------------------
+# ---------------------------------------------------------------------------------
+def remove_a_few_bad_spikes(spike_array, spike_idx, z_thresh=Z_THRESH,
+                            viz_flag=False):
+    """
+    Function to remove just a few of the detected spike waveforms, when we just
+    have a few that are obviously bad. Clustering based approaches, as used
+    elsewhere in this code, are going to be bad at this, because the "bad"
+    cluster has just a few members. So, instead, we just use the L-infinity norm
+    of spikes relative to median spike to locate bad cases.
+
+    ARGS:
+        spike_array: NxT array of N detected spike waveforms
+        spike_idx: Nx1 array of indices where spikes are located in the
+            emg recording data array
+        z_thresh: threshold for z-scored distance from median spike
+        viz_flag: boolean. Visualize spikes that we removed?
+
+    RETURNS:
+        spike_array_out: MxT array of spikes, where N-M is the number of bad
+            spikes detected
+        spike_idx_out: Mx1 array of spike indices
+
+    """
+    # calculate L-infinity distance to median spike
+    spike_median = np.median(spike_array, axis=0)
+    spike_diff = np.max(np.abs((spike_array - spike_median)), axis=1)
+
+    # z-score those distances
+    spike_diff_z = (spike_diff - np.mean(spike_diff))/np.std(spike_diff)
+
+    # find spikes with too large distance
+    rm_idx = (spike_diff_z > z_thresh)
+
+    # make copies for output
+    spike_array_out = spike_array[~rm_idx, :]
+    spike_idx_out = spike_idx[~rm_idx]
+
+    # visualize?
+    if viz_flag:
+        # make figure and axis
+        fig, ax = plt.subplots()
+
+        # plot all spikes
+        for spike in spike_array:
+            ax.plot(spike, color='k', alpha=0.8, lw=0.2)
+
+        # plot all BAD spikes in red
+        for spike in spike_array[rm_idx,:]:
+            ax.plot(spike, color='r', alpha=1.0, lw=0.4)
+
+        plt.show()
+
+    # return
+    return spike_array_out, spike_idx_out
+
 
 # ---------------------------------------------------------------------------------
 def identify_units(spike_array, spike_idx, n_spikes_min,
@@ -580,8 +639,8 @@ def run_sorting_on_file(data, min_spike_rate=MIN_SPIKE_RATE_POWER,
 if __name__ == "__main__":
     # TEMP -- try an example data file
     # load data file
-    data_folder = 55  # 66 # 65
-    axo_num = 9  # 1  # 4
+    data_folder = 84 # 66 # 65
+    axo_num = 2  # 1  # 4
 
     data = load_processed_data(data_folder, axo_num)
 

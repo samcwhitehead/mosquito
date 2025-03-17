@@ -74,7 +74,7 @@ EMG_HIGHCUT_STEER = 10000
 EMG_BTYPE_STEER = 'bandpass'
 EMG_WINDOW_STEER = 32  # 32
 EMG_OFFSET_STEER = 4
-THRESH_FACTORS_STEER = (1.5, 4)  # (0.55, 4)  # (0.75, 4.0)  # (0.5, 4) # (0.35, 0.7)  # (0.65, 8)
+THRESH_FACTORS_STEER = (2.5, 6)  # (0.55, 4)  # (0.75, 4.0)  # (0.5, 4) # (0.35, 0.7)  # (0.65, 8)
 
 # general spike detection
 REMOVE_EDGE_CASE_FLAG = True  # normally True
@@ -1130,7 +1130,7 @@ def process_abf(filename, muscle_type, species='aedes', channel_process_idx=None
                               viz_flag=False)
 
         # detect spikes
-        abs_flag = False  # (muscle_type != 'power')  # if looking at power muscles, only look at positive peaks
+        abs_flag = False  #  (muscle_type != 'power')  # if looking at power muscles, only look at positive peaks
         detrend_flag = (muscle_type == 'power')  # if looking at power muscles, detrend signal
 
         spikes, spike_t, spike_idx = detect_spikes(emg_filt, fs,   #
@@ -1342,7 +1342,7 @@ if __name__ == "__main__":
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
     data_folder = '83_20250310'  # '33_20240626'  # '32_20240625'
-    axo_num_list = np.arange(2, 5)  #
+    axo_num_list = [2]   # np.arange(5, 10)  #
 
     # loop over axo files to analyze
     for axo_num in axo_num_list:
@@ -1388,10 +1388,13 @@ if __name__ == "__main__":
         if not muscle_type == 'power':
             muscle_type = 'steer'
 
-        # also get target muscle -- this will let us skip empty channels
+        # get target muscle -- this will let us skip empty channels
         target_muscle = log_df.loc[row_idx]['Target Muscle'].values[0]
         target_muscles = list(target_muscle.split('_'))
         channel_process_index = [(musc.lower() != 'none') for musc in target_muscles]
+
+        # get fly sex. this should be added to data
+        sex = log_df.loc[row_idx]['Sex'].values[0]
 
         # -----------------------------------------------------------
         # try to get species for current fly by reading README
@@ -1435,6 +1438,9 @@ if __name__ == "__main__":
                            species=species,
                            channel_process_idx=channel_process_index,
                            debug_flag=DEBUG_FLAG)
+
+        # additional info for data struct
+        data['sex'] = sex
 
         # -----------------------------------------------------------
         # save dictionary containing processed data
