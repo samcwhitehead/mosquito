@@ -31,11 +31,11 @@ SAVE_FLAG = True
 # SAVE_FILE_EXT = '.pkl'
 
 # region of spike window to use for re-clustering
-TRIM_IDX_POWER = np.arange(1400, 2100)
+TRIM_IDX_POWER = np.arange(1600, 2100)  # np.arange(1400, 2100)
 TRIM_IDX_STEER = np.arange(5, 60)  # np.arange(10, 50)
 
 # smallest spike rate allowed to be called a unit
-MIN_SPIKE_RATE_POWER = 0.5  # Hz, will probably depend on species and muscle type!
+MIN_SPIKE_RATE_POWER = 2  # 0.5  # Hz, will probably depend on species and muscle type!
 MIN_SPIKE_RATE_STEER = 15  # 50  # Hz
 
 # for just removing a few spikes that look off
@@ -639,8 +639,8 @@ def run_sorting_on_file(data, min_spike_rate=MIN_SPIKE_RATE_POWER,
 if __name__ == "__main__":
     # TEMP -- try an example data file
     # load data file
-    data_folder = 84 # 66 # 65
-    axo_num = 2  # 1  # 4
+    data_folder = 91  # 66 # 65
+    axo_num = 9  # 1  # 4
 
     data = load_processed_data(data_folder, axo_num)
 

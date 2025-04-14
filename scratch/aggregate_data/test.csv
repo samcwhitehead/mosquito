@@ -1,0 +1,342 @@
+,Day,Axo Num,Fly Num,Sex,Species,Target Muscle Type,Target Muscle,Electrode Num,Video Count,Notes
+0,55_20241007,1.0,1,F,Aedes,power,DVM,1,1,DLM signal large. DVM placement (EMG) is the same as previous trial
+1,55_20241007,2.0,1,F,Aedes,power,DLM,2,1,DLM placement (EMG2) same as previous trial
+2,55_20241007,4.0,2,F,Aedes,power,DVM,1,1,DVM placement (EMG) is the same as previous trial
+3,55_20241007,5.0,2,F,Aedes,power,DLM,2,1,DLM placement (EMG2) same as previous trial
+4,55_20241007,7.0,4,F,Aedes,steering,b1,1,1,Trying steering. Low cut freq to 100 Hz. Took 2 photos
+5,55_20241007,8.0,4,F,Aedes,steering,b3,2,1,Didn't move EMG2 electrode (b1? B2?) Tried to move EMG to hit b3. Took 2 photos
+6,55_20241007,9.0,4,F,Aedes,power,DLM,3,1,Moved bandpass low cut back to 1 Hz. As 2 good units
+7,56_20241009,0.0,1,F,Aedes,power,DVM,1,1,EMG is strong single unit; EMG2 is lots of little ones. Had to turn gain down to 2X for EMG
+8,56_20241009,1.0,1,F,Aedes,power,DVM,1,1,Moved EMG2 to a DLM unit
+9,56_20241009,2.0,1,F,Aedes,power,DLM,2,1,Moved EMG to posterior DLM unit
+10,56_20241009,3.0,1,F,Aedes,power,DLM,2,0,"Thought there was a chance that EMG2 was picking up a DVM, so I moved it medial\"
+11,56_20241009,5.0,2,F,Aedes,steering,b1,1,1,Not great recording for EMG2. Used bandpass low cutoff of 100 Hz
+12,57_20241016,0.0,1,F,Aedes,power,DLM,1,1,Each electrode has 2 good units. Using HPA
+13,57_20241016,1.0,1,F,Aedes,power,DLM,2,1,Moved EMG (target 1) posterior. Still have HPA on
+14,57_20241016,2.0,1,F,Aedes,power,DVM,3,1,Moved both electrodes. Target 2 is on line; target 1 is more posterior
+15,57_20241016,3.0,1,F,Aedes,steering,b1,4,1,Seems like I'm just getting b1. Using normal steering filter settings
+16,57_20241016,4.0,1,F,Aedes,steering,b3,5,0,Just trying points far from b1 but I think I still pick it up in both
+17,57_20241016,5.0,2,M,Aedes,power,DLM,1,1,I think these are mostly the same units
+18,59_20241030,2.0,1,F,Aedes,power,DLM,3,1,"Didn't move Target 2, but signal is different now. Targets are DLM (posterior) and DLM (anterior). Target 2 is the same in all trials"
+19,59_20241030,3.0,1,F,Aedes,power,DLM,4,1,Trying to repeat axo 1. Targets are DLM (mid/posterior) and DLM (anterior). Target 2 is the same in all trials
+20,59_20241030,4.0,1,F,Aedes,power,DLM,5,0,Trying to repeat axo 0. Targets are DLM (mid) and DLM (anterior). Target 2 is the same in all trials
+21,60_20241031,0.0,1,F,Aedes,power,DLM,1,0,"For each fly this day, started with targets 1 & 2 in anterior DLMs, then moved target 1 posterior in increments. DLM(ant), DLM (ant)"
+22,60_20241031,1.0,1,F,Aedes,power,DLM,2,0,"Just moved target 1 in posterior direction. Turned EMG gain down to 5X (not EMG2). DLM(ant/mid), DLM (ant)"
+23,60_20241031,2.0,1,F,Aedes,power,DLM,3,0,"Same as above. DLM(mid), DLM (ant)"
+24,60_20241031,3.0,1,F,Aedes,power,DLM,4,0,"Same as above. DLM(mid/post), DLM (ant)"
+25,60_20241031,4.0,1,F,Aedes,power,DLM,5,0,"Moved target 1 back to anterior DLM for consistency check. DLM(ant), DLM (ant)"
+26,60_20241031,5.0,2,F,Aedes,power,DLM,1,0,"Pretty close electrodes; slow units. DLM(ant), DLM (ant)"
+27,60_20241031,6.0,2,F,Aedes,power,DLM,2,0,"Flight is weak, but I think okay. Again, kept target 2 and moved target 1 posterior. DLM(ant/mid), DLM (ant)"
+28,60_20241031,7.0,2,F,Aedes,power,DLM,3,0,"Not sure if getting overlapping units. DLM(mid), DLM (ant)"
+29,60_20241031,8.0,2,F,Aedes,power,DLM,4,0,"I think target 2 may have been jostled? DLM(mid/post), DLM (ant)"
+30,60_20241031,9.0,2,F,Aedes,power,DLM,5,0,"Another test with both targets in anterior DLM to check consistency. DLM(ant), DLM (ant)"
+31,60_20241031,10.0,3,F,Aedes,power,DLM,1,0,"Pretty close electrodes, same single unit. DLM(ant), DLM (ant)"
+32,60_20241031,11.0,3,F,Aedes,power,DLM,2,0,"Close to a large hair -- potential good landmark? DLM(ant/mid), DLM (ant)"
+33,60_20241031,12.0,3,F,Aedes,power,DLM,3,0,"Here I went against the trend and moved the target 1electrode anterior, splitting difference between axos 10 and 11. DLM(more ant than mid), DLM (ant)"
+34,60_20241031,13.0,3,F,Aedes,power,DLM,4,0,"Couldn't get target 1 in mid positions, so I went far posterior. DLM(post), DLM (ant)"
+35,60_20241031,14.0,3,F,Aedes,power,DLM,5,0,"Was able to get something more middle. DLM(mid/post), DLM (ant)"
+36,60_20241031,15.0,3,F,Aedes,power,DLM,6,0,"Another one with both targets in anterior DLMs for consistency. DLM(ant), DLM (ant)"
+37,61_20241101,0.0,1,F,Aedes,power,DLM,1,0,"Starting with close electrodes. DLM (ant), DLM (ant)"
+38,61_20241101,1.0,1,F,Aedes,power,DLM,2,0,"Target 1 signal is wild…  DLM (ant/mid), DLM (ant)"
+39,61_20241101,2.0,1,F,Aedes,power,DLM,3,0,"DLM (mid/post), DLM (ant)"
+40,61_20241101,3.0,1,F,Aedes,power,DLM,4,0,"Very close to tether glue.  DLM (post), DLM (ant)"
+41,61_20241101,4.0,1,F,Aedes,power,DLM,5,0,"Consistency check. DLM (ant), DLM (ant)"
+42,61_20241101,5.0,2,F,Aedes,power,DLM,1,0,"Both have the same units. DLM (ant), DLM (ant)"
+43,61_20241101,6.0,2,F,Aedes,power,DLM,2,0,"No obvious overlap in units. Forgot snapshot. DLM (ant/mid), DLM (ant)"
+44,61_20241101,7.0,2,F,Aedes,power,DLM,3,0,"Moving target 1 anterior to be closer to target 2. Now have overlap.  DLM (ant/mid), DLM (ant)"
+45,61_20241101,8.0,2,F,Aedes,power,DLM,4,0,"Repeating(ish) axo 6 to get a snapshot.  DLM (an/mid), DLM (ant)"
+46,61_20241101,9.0,2,F,Aedes,power,DLM,5,0,"Weak flight. DLM (post), DLM (ant)"
+47,62_20241108,0.0,1,F,Aedes,power,DLM,1,0,"At least on overlapping unit. Here trying the experiment where I move a ""bident"" across thorax.  DLM (ant), DLM (ant)"
+48,62_20241108,1.0,1,F,Aedes,power,DLM,2,0,"Just same big unit in both. DLM (mid), DLM (mid)"
+49,63_20241111,0.0,1,M,Aedes,power,DLM,4,0,"For all the male flies here, doing the same experiment where I put target 2 to record an anterior DLM and then move target 1 from the anterior to posterior notum. DLM ant, DLM ant"
+50,63_20241111,1.0,1,M,Aedes,power,DLM,5,0,"DLM ant/mid, DLM ant"
+51,63_20241111,2.0,1,M,Aedes,power,DLM,6,0,"DLM mid/post, DLM ant"
+52,63_20241111,3.0,1,M,Aedes,power,DLM,7,0,"DLM post, DLM ant"
+53,63_20241111,4.0,1,M,Aedes,power,DLM,8,0,"DLM ant/mid, DLM ant"
+54,63_20241111,5.0,1,M,Aedes,power,DLM,9,0,"DLM ant, DLM ant"
+55,63_20241111,6.0,2,M,Aedes,power,DLM,1,0,"DLM ant, DLM ant"
+56,63_20241111,7.0,2,M,Aedes,power,DLM,2,0,"DLM ant/mid, DLM ant"
+57,63_20241111,8.0,2,M,Aedes,power,DLM,3,0,"DLM mid/post, DLM ant"
+58,63_20241111,9.0,2,M,Aedes,power,DLM,4,0,"DLM post, DLM ant"
+59,63_20241111,10.0,2,M,Aedes,power,DLM,5,0,"DLM ant, DLM ant"
+60,63_20241111,11.0,3,F,Aedes,power,DLM,1,0,"For this fly, tried the moving ""bident"" thing again, although in later trials I also tried some DVM exploration. DLM ant, DLM ant"
+61,63_20241111,12.0,3,F,Aedes,power,DLM,2,0,"DLM mid, DLM mid"
+62,63_20241111,13.0,3,F,Aedes,power,DLM,3,0,"DLM post, DLM post"
+63,63_20241111,14.0,3,F,Aedes,power,DVM,4,0,"DVM (stripe, post), DVM (mid/post)"
+64,63_20241111,15.0,3,F,Aedes,power,DVM,5,0,"Moved target 1 to the stripe area, and then moved target 2 further posterior. DVM post, DVM post"
+65,63_20241111,16.0,3,F,Aedes,power,DVM,5,0,"Kept target 1 the same and moved target 2. DVM post, DVM mid/post"
+66,63_20241111,17.0,4,M,Aedes,power,DLM,1,1,"Just trying to beef up male data set. DLM ant/mid, DLM ant"
+67,63_20241111,18.0,4,M,Aedes,power,DVM,2,1,"Just trying to beef up male data set. DVM post, DVM mid/post"
+68,64_20241113,0.0,1,F,Aedes,power,DLM,1,0,"Nice units. One per probe. Looking at right DLM (ant/mid), right DLM (ant)"
+69,64_20241113,1.0,1,F,Aedes,power,DVM,2,0,"Kept target 2 the same and moved target 1 to stripe area.  DVM (mid/post), DLM (ant)"
+70,64_20241113,2.0,1,F,Aedes,power,DVM,3,0,"Moved target 1 more posterior and target 2 to where target 1 was previously. DVM (post), DVM (mid/post)"
+71,64_20241113,3.0,1,F,Aedes,power,DLM,4,0,"Measuring a left/right DLM pair. Left DLM (mid), right DLM (mid)"
+72,64_20241113,4.0,1,F,Aedes,power,DLM,5,0,"Another L/R pair, further anterior. Left DLM (mid/ant), right DLM (mid/ant)"
+73,64_20241113,6.0,1,F,Aedes,power,DVM,6,0,"Should be the same as axo 5. Note that we're back to both recordings on the right side. DVM (post), DVM (mid/post)"
+74,64_20241113,7.0,2,F,Aedes,power,DLM,1,0,"Mosquito was a little higher up than usual, so mic signal is weak. DLM (ant/mid), DLM (ant)"
+75,64_20241113,8.0,2,F,Aedes,power,DLM,2,0,"Moved both probes posterior. Flight is a bit weak here. DLM (mid), DLM (ant/mid)"
+76,65_20241114,0.0,1,F,Aedes,power,DLM,1,0,"Two units for target 2. One for target 1. DLM (mid), DLM (ant/mid)"
+77,65_20241114,1.0,1,F,Aedes,power,DVM,2,0,"Target 2 is the same place. Target 1 moved to stripe--near a bristle. DVM (mid/post), DLM (ant/mid)"
+78,65_20241114,2.0,1,F,Aedes,power,DVM,2,0,"Moved target 2 to a posterior DLM (in line with target 1). Target 1 stayed fixed. I think I'm in DLM 6 and DVM O (based on Levine and Malcolm convenitons). DVM (mid/post), DLM (post)"
+79,65_20241114,3.0,1,F,Aedes,power,DVM,3,0,"Tried to get target 2 where target 1 was (stripe) and moved target 1 back. DVM (post), DVM (mid/post)"
+80,65_20241114,4.0,2,F,Aedes,power,DLM,1,0,"I think I have three right side DLM units (across 2 probes). DLM (mid), DLM (ant/mid)"
+81,65_20241114,5.0,2,F,Aedes,power,DVM,2,0,"Kept target 2 the same. Moved target 1 to DVM stripe. DVM (mid/post), DLM (ant/mid)"
+82,65_20241114,6.0,2,F,Aedes,power,DVM,3,0,"Moved target 2 to previous target 1 position and moved target 1 back (posterior). DVM (post), DVM (mid/post)"
+83,65_20241114,7.0,2,F,Aedes,power,DLM,4,0,"Left/right mid DLM pair, but extracellular so multiunit. Right DLM (mid), left DLM (mid)"
+84,66_20241115,0.0,1,M,Aedes,power,DLM,1,0,"Two units for target 1. DLM (ant/mid), DLM (ant)"
+85,66_20241115,1.0,1,M,Aedes,power,DLM,1,0,"Have a left/right pairing where I think each is measuring two separate units. Target 1 was not moved from previous trial. Right DLM (ant/mid), left DLM (ant/mid)"
+86,66_20241115,2.0,1,M,Aedes,power,DVM,2,0,"Both on right side again. I think I have DLM 6/DVM O again (or I'm in that area anyway). DVM (mid/post), DLM (post)"
+89,67_20250205,2.0,2,F,Drosophila,power,DLM,1,0,"Total gain 200X. Targets are right DLM4/5 and right DLM2/3, respectively"
+90,67_20250205,3.0,3,F,Drosophila,power,DLM,1,0,"Total gain 200X. Getting negative reflections of spikes in other channel. Targets are right DLM4/5 and right DLM2/3, respectively. "
+91,67_20250205,4.0,4,F,Drosophila,power,DLM,1,0,"Total gain 200X. Getting negative reflections of spikes in other channel. Good view for Iding. Targets are right DLM4/5 and right DLM2/3, respectively. "
+92,67_20250205,5.0,4,F,Drosophila,power,DLM,1,0,"Same esetup as before but I moved Target 2 anterior (so more like DLM 1/2). Why is target 2 so much slower? Do I have two units in Target 1? DLM 4/5, DLM 1/2"
+93,67_20250205,6.0,4,F,Drosophila,power,DLM,2,0,"From previous file, just moved Target 1 anterior and increased total gain to 500X. DLM 3/4, DLM 1/2"
+94,67_20250205,8.0,6,F,Drosophila,power,DLM,1,0,"Total gain 200X. DLM 4/5, DLM 2/3"
+95,68_20250206,0.0,1,F,Drosophila,power,DLM,1,0,Total gain 200X. Target 2 is clipping. DLM 4/5 and DLM 2/3
+96,68_20250206,1.0,1,F,Drosophila,power,DLM,2,0,Moved Target 1 posterior; left Target 2 the same. Decreased Target 2 gain to 100X total. DLM 5/6 and DLM 2/3
+97,68_20250206,2.0,2,F,Drosophila,power,DLM,1,0,Back to 200X gain for both channels. DLM 4/5 and DLM 2/3
+98,68_20250206,3.0,2,F,Drosophila,power,DLM,1,0,Moved Target 2 anterior. Really fast spikes? DLM 4/5 and DLM 1/2
+99,68_20250206,4.0,3,M,Drosophila,power,DLM,1,0,First male! 200X gain on both. DLM 4 and DLM 2/3
+100,68_20250206,5.0,4,M,Drosophila,power,DLM,2,0,200X total gain. Stopped flying at the end. DLM 4/5 and DLM 2/3
+101,69_20250207,0.0,1,M,Drosophila,power,DLM,1,0,"Target 1 gain at 200X; Target 2 at 100X. Stopped flying at end, so only got ~40 seconds. DLM 4/5 and DLM 2/3"
+102,70_20250212,0.0,1,M,Drosophila,power,DLM,1,0,"Some mic noise. Targets 1 and 2 have total gains 500X and 200X, respectively. Why is spike rate so different? DLM 4/5 and DLM 2/3"
+103,70_20250212,1.0,2,M,Drosophila,power,DLM,1,0,Just 1 unit. Total gain 500X. DLM 4
+104,70_20250212,2.0,3,M,Drosophila,power,DLM,1,0,"Finnicky fly but good recording. Targets 1 and 2 have total gains 200X and 100X, respectively. DLM 4/5 and DLM 2/3"
+105,71_20250213,0.0,1,M,Drosophila,power,DLM,1,0,Total gain 500X for both. Stopped flying after ~60 s. No pic. DLM 4/5 and DLM 2/3
+106,71_20250213,1.0,1,M,Drosophila,power,DVM,2,0,Only moved Target 1 and turned its gain down to 200X. Have an extra weird waveform in there -- ignore. DVM T and DLM 2/3
+107,71_20250213,2.0,1,M,Drosophila,power,DVM,2,0,Just moved Target 2 posterior. Same weird waveform in Target 1. DVM T and DLM 4/5
+108,71_20250213,3.0,2,M,Drosophila,power,DVM,1,0,"Angle was weird, so just using one channel at the moment. Total gain 200X. DVM T"
+109,71_20250213,4.0,2,M,Drosophila,power,DVM,1,0,Put in Target 2. Total gain 200X for both. DVM T and DLM 2/3
+110,71_20250213,5.0,3,M,Drosophila,power,DVM,1,0,Total gain 200X for both. DVM T and DLM 2/3
+111,71_20250213,6.0,3,M,Drosophila,power,?,2,0,Just moved Target 1 medial but it looks very similar to before. DO I have a DLMN or DVM? Target 2 is still DLM 2/3
+112,71_20250213,8.0,3,M,Drosophila,power,DLM,4,0,Moved Target 1 back medial as sanity check. DLM 4/5 and DLM 2/3
+113,72_20250214,0.0,1,M,Drosophila,power,DVM,1,0,200X and 500X total gain. Target 2 has multiple units. DVM T and DLM 2/3
+114,72_20250214,1.0,1,M,Drosophila,power,DLM,2,0,Moved Target 1 medially. DLM 4/5 and DLM 2/3
+115,72_20250214,2.0,2,M,Drosophila,power,DVM,1,0,Total gain 200X for both. DVM T and DLM 2/3
+116,72_20250214,3.0,2,M,Drosophila,power,DLM,2,0,Moved Target 1 medially to get DLM. Also reinserted ground. DLM 4/5 and DLM 2/3
+117,72_20250214,4.0,2,M,Drosophila,power,DVM,3,0,Gains at 500X and 200X. DVM R? and DVM T
+118,73_20250216,0.0,1,M,Drosophila,power,DVM,1,0,"Gains at 500X and 200X. For Target 1, I'm a little posterior to bristle. DVM T/S and DLM 3"
+119,73_20250216,1.0,1,M,Drosophila,power,DLM,2,0,"Reduced Target 1 gain to 200X. Tried to just move Target 1, but Target 2 popped out so had to replace. DLM 4/5 and DLM 2/3"
+120,73_20250216,2.0,2,F,Drosophila,power,DLM,1,0,"Target 1 has another small unit, but might be hard to extract. 200X gain for all. DLM 4/5 and DLM 2/3"
+121,73_20250216,3.0,2,F,Drosophila,power,DLM,2,0,3 distinguishable units but maybe weak flight. 200X gain all. Target 1 is pretty deep. DLM 3/4? And DLM 2?
+122,73_20250216,4.0,3,F,Drosophila,power,DLM,1,0,Tried normal placement. Nice recordings. 200X and 100X gains. DLM 4/5 and DLM 2/3
+123,73_20250216,5.0,3,F,Drosophila,power,DLM,1,0,"Moved Target 2 posterior and deeper. I think each electrode is picking up the other's signal as a smaller, positive spike. 200X and 100X. I think this one has a nice splay state example. DLM 4/5 and DLM 3/4"
+124,73_20250216,6.0,3,F,Drosophila,power,DLM,2,0,Moved Target 1 posterior. 500X and 200X gains. Some clipping in Target 1
+125,75_20250221,5.0,2,F,Drosophila,steering,b1,1,0,Can't tell if this is bad or very good
+126,75_20250221,6.0,2,F,Drosophila,steering,b1,1,0,Same placement but with video
+127,75_20250221,7.0,2,F,Drosophila,steering,b1,2,1,Trying new position
+128,76_20250225,0.0,1,M,Aedes,power,DLM,1,0,"Each channel has a few other small units. During recording, turned down audio monitor volume to reduce signal in mic. DLM mid/post and DLM ant/mid"
+129,76_20250225,1.0,1,M,Aedes,power,DVM,2,0,"Moved both targets. Channel 2 has units that could be hard to distinguish, but mostly I just want to DVM recording. DVM post and DLM "
+130,76_20250225,2.0,2,M,Aedes,power,DVM,1,0,"This one is either a much stronger flier than previous, or the angle with the mic is better. Both channels have one good unit"
+131,76_20250225,3.0,2,M,Aedes,power,DLM,2,0,Moved Target 1 medially to a DLM
+132,76_20250225,4.0,2,M,Aedes,power,DLM,3,0,"Just moved Target 1 closer to Target 2. Interestingly, they both pick up essentially the same thing, despite being a ways apart. Further evidence that there are not many motor units in Aedes power system"
+133,77_20250226,0.0,1,M,Aedes,power,DVM,1,0,Seems to be flying well. One big and one small unit in each channel. Gains are 1000X and 500X. DLM (post/mid) and DLM (ant/mid)
+134,77_20250226,1.0,2,M,Aedes,power,DVM,1,0,I think this one was maybe stabbed too many times. Flight is in and out. Tried to aim for same spots as previous fly. 1000X and 500X gains. DLM (post/mid) and DLM (ant/mid)
+135,77_20250226,2.0,2,M,Aedes,power,DVM,2,0,Just moved Target 1 a little posterior (right next to hinge) and got a better unit. Gains at 500X for all. DLM (post) and DLM (ant/mid)
+136,77_20250226,3.0,3,M,Aedes,power,DVM,1,0,Inserting two electrodes really seems to affect flight. 500X gain all. Each channel has multiple units. DLM (post) and DLM (ant/mid)
+137,77_20250226,4.0,3,M,Aedes,power,DVM,1,0,"Same positions and gains, but mosquito seems to fly better in bright light? 500X gain all.  DLM (post) and DLM (ant/mid)"
+138,77_20250226,5.0,4,M,Aedes,power,DVM,1,0,"Trying to be more delicate, so only using one probe electrode. Still got flight stopped at end. 500X gain all. DVM (post) and None"
+140,78_20250227,1.0,2,M,Aedes,power,DVM,1,0,"Weak flight, not sure if usable. 200X gain. DVM (post)"
+141,79_20250227,0.0,1,F,Drosophila,steering,b1,1,0,Seems to go in and out. 500X gain. This is where Drosophila experiments start
+142,79_20250227,4.0,2,F,Drosophila,steering,b1,2,0,Moved a bit deeper but all else is the same
+143,79_20250227,7.0,3,F,Drosophila,steering,b1,2,0,"New position. Sometimes looks good, but it goes in and out. 1000X gain"
+144,80_20250305,1.0,1,F,Drosophila,steering,b1,1,1,"Repeating axo 0 but this time with mic, video, and emg"
+145,80_20250305,2.0,2,F,Drosophila,steering,b1,1,1,"Not as clean as earlier fly, but maybe okay. Started video late, so this is a long recording. Had a flight stop"
+146,80_20250305,3.0,3,F,Drosophila,steering,b1,1,1,I think this one is okay. Placed electrode more anterior than normal
+147,81_20250306,3.0,3,F,Drosophila,steering,b1,2,0,Tried to adjust a little
+148,81_20250306,4.0,3,F,Drosophila,steering,b1,3,1,Adjusted again. Took a video. I think this one is good
+149,82_20250307,3.0,2,F,Drosophila,steering,b1,3,0,"Was really good to start, but then went mediocre"
+150,82_20250307,4.0,2,F,Drosophila,steering,b1,4,1,Made some small adjustments and I think it's now quite good
+151,82_20250307,5.0,3,F,Drosophila,steering,b1,1,1,"New fly, but think I lucked into good position right away. A little anterior of bristle seems to work"
+152,82_20250307,7.0,3,F,Drosophila,steering,b1,3,1,Took electrode out and reinserted. I think this one is better than previous (axo 6)
+153,82_20250307,8.0,4,F,Drosophila,steering,b1,1,1,Started off incredible then changed into a just okay recording
+154,82_20250307,9.0,4,F,Drosophila,steering,b1,2,0,Adjusted electrode position a tiny bit
+155,83_20250310,0.0,1,F,Aedes,steering,b1,1,1,Got a good one after a few attempts
+156,83_20250310,2.0,3,F,Aedes,steering,b1,1,1,I think this one is good
+157,83_20250310,3.0,4,F,Aedes,steering,b1,1,1,Recording got worse over time
+158,83_20250310,4.0,4,F,Aedes,steering,b1,2,0,Just taking another recording because flight is strong. Moved electrode a little
+159,84_20250313,0.0,1,M,Aedes,steering,b1,1,0,Weak flight/ Wingbeat noise is too high for bandpass filter with males
+160,84_20250313,3.0,2,M,Aedes,steering,b1,2,0,Same position as previous. Playing with lights to get modulation of b1 spike rate
+161,84_20250313,4.0,3,F,Aedes,steering,b1,1,1,Not the best since it's contaminated by power muscle signal. Kind of weak. Had to breathe on fly
+162,84_20250313,6.0,4,M,Aedes,steering,b1,2,1,Was able to get a much better recording so deleted previous video
+163,84_20250313,7.0,5,M,Aedes,steering,b1,1,1,Fairly good but has some power muscle and wingbeat noise
+164,84_20250313,8.0,5,M,Aedes,power,DVM,2,0,"Switched filters to typical power recording settings (1 Hz - 10 kHz bandpass, notch off, 200X total gain)"
+165,84_20250313,9.0,6,M,Aedes,power,DVM,1,0,Same settings as previous. Weak flight
+166,85_20250317,0.0,1,M,Aedes,steering,b1,1,0,Weak flight but good recording
+167,86_20250320,1.0,2,F,Drosophila,steering,b1,1,1,Is this the best recording I've ever done? Or just noise?
+168,86_20250320,2.0,2,F,Drosophila,steering,b1,2,1,I think it's real! Moved electrode and got an even stronger signal
+171,87_20250324,4.0,3,M,Drosophila,power,DVM,1,0,Getting some negative reflections. DVM T? and DLM 2/3
+172,87_20250324,5.0,3,M,Drosophila,power,DLM,2,0,Target 1 has 2 units. Flight ended around 1 minute. DLM 4/5 and DLM 2/3
+173,87_20250324,6.0,4,M,Drosophila,power,DVM,1,0,Super high spike rate. 200X total gain. DVM T?
+174,87_20250324,7.0,4,M,Drosophila,power,DVM,2,0,"Moved electrode a little to check spike rate. Getting two units, both very fast. DVM S+T?"
+175,87_20250324,8.0,5,F,Drosophila,power,DVM,1,0,Having mic issues so not sure about this one. DVM T?
+176,87_20250324,9.0,6,M,Drosophila,power,DVM,1,0,Also quite fast. Stopped flying around 1:50. DVM T?
+177,87_20250324,10.0,7,F,Drosophila,power,DLM,1,0,"Couldn't get one clean DVM unit, so went for a DLM. DLM 3/4"
+178,87_20250324,11.0,7,F,Drosophila,power,DLM,1,0,Kept Target 1 in the same place but added Target 2 anterior to get another DLM. DLM 3/4 and DLM 2/3
+179,88_20250326,0.0,1,M,Drosophila,power,DVM,1,0,Total gain at 1000X (100X + 10X). DVM T?
+180,88_20250326,1.0,1,M,Drosophila,power,DVM,2,0,Seemslike maybe weak flight. Target 1 in same spot. DVM T? and DVM A?
+181,88_20250326,2.0,2,F,Drosophila,power,DVM,1,0,Waveforms quite broad? Flight stopped around 1:45. DVM T?
+182,88_20250326,3.0,3,F,Drosophila,power,DVM,1,0,Maybe a tiny unit in there too? DVM T?
+183,88_20250326,4.0,3,F,Drosophila,power,DVM,2,0,Target 1 stayed the same. Did waveform change? DVM T? and DVM A?
+184,88_20250326,6.0,4,M,Drosophila,power,DVM,1,0,Not super clean. 2 units. DVM T?
+186,88_20250326,8.0,5,F,Drosophila,power,DVM,1,0,200X total gain. DVM T?
+187,88_20250326,9.0,5,F,Drosophila,power,DVM,2,0,"Tried to leave Target 1 the same, but may have bumped it. Two units in Target 2. DVM T? and DVM A?"
+188,88_20250326,10.0,6,F,Drosophila,power,DVM,1,0,500X total gain. DVM T?
+189,88_20250326,11.0,6,F,Drosophila,power,DVM,2,0,Tried to keep Target 1 as is from last trial. DVM T? and DLM 3?
+190,89_20250328,0.0,1,M,Aedes,steering,b1,1,0,Not sure how good. 
+191,89_20250328,1.0,2,M,Aedes,steering,b1,1,0,Also doesn't seem great. Had to hold it in place
+192,89_20250328,2.0,3,M,Aedes,steering,b1,1,0,Good one
+193,90_20250329,0.0,1,M,Aedes,steering,b1,1,1,Decent recording but weak flight. Had to give a few puffs
+194,91_20250331,0.0,1,M,Aedes,steering,b1,1,1,Seems decent enough but had to poke around to get the right placement
+195,91_20250331,1.0,2,M,Aedes,steering,b1,1,0,Noisy. Gets worse over time
+196,91_20250331,2.0,2,M,Aedes,steering,b1,1,1,Trying again with same position. Hopefully recording maintains quality
+197,91_20250331,4.0,3,M,Aedes,steering,b1,2,0,Moved slightly; I think recording is better
+198,91_20250331,5.0,3,M,Aedes,steering,b1,2,1,Same spot as previous recording. Wanted a video
+199,91_20250331,6.0,4,M,Aedes,steering,b1,1,1,Seems decent enough but had to poke around to get the right placement
+200,91_20250331,7.0,5,M,Aedes,steering,b1,1,0,Quite noisy
+201,91_20250331,8.0,6,M,Aedes,steering,b1,1,1,Decent recording (?) but weak flight
+202,91_20250331,9.0,7,M,Aedes,steering,b1,1,1,Pretty noisy
+203,55_20241007,1.0,1,F,Aedes,power,DLM,2,1,DLM signal large. DVM placement (EMG) is the same as previous trial
+204,55_20241007,2.0,1,F,Aedes,power,DLM,2,1,DLM placement (EMG2) same as previous trial
+205,55_20241007,4.0,2,F,Aedes,power,DLM,2,1,DVM placement (EMG) is the same as previous trial
+206,55_20241007,5.0,2,F,Aedes,power,DLM,2,1,DLM placement (EMG2) same as previous trial
+207,55_20241007,7.0,4,F,Aedes,steering,b2,1,1,Trying steering. Low cut freq to 100 Hz. Took 2 photos
+208,55_20241007,8.0,4,F,Aedes,steering,b2,1,1,Didn't move EMG2 electrode (b1? B2?) Tried to move EMG to hit b3. Took 2 photos
+209,55_20241007,9.0,4,F,Aedes,power,DLM,2,1,Moved bandpass low cut back to 1 Hz. As 2 good units
+210,56_20241009,0.0,1,F,Aedes,power,DVM,1,1,EMG is strong single unit; EMG2 is lots of little ones. Had to turn gain down to 2X for EMG
+211,56_20241009,1.0,1,F,Aedes,power,DLM,2,1,Moved EMG2 to a DLM unit
+212,56_20241009,2.0,1,F,Aedes,power,DLM,2,1,Moved EMG to posterior DLM unit
+213,56_20241009,3.0,1,F,Aedes,power,DLM,3,0,"Thought there was a chance that EMG2 was picking up a DVM, so I moved it medial\"
+214,56_20241009,5.0,2,F,Aedes,steering,b2,1,1,Not great recording for EMG2. Used bandpass low cutoff of 100 Hz
+215,57_20241016,0.0,1,F,Aedes,power,DLM,1,1,Each electrode has 2 good units. Using HPA
+216,57_20241016,1.0,1,F,Aedes,power,DLM,1,1,Moved EMG (target 1) posterior. Still have HPA on
+217,57_20241016,2.0,1,F,Aedes,power,DVM,2,1,Moved both electrodes. Target 2 is on line; target 1 is more posterior
+218,57_20241016,3.0,1,F,Aedes,steering,b2,3,1,Seems like I'm just getting b1. Using normal steering filter settings
+219,57_20241016,4.0,1,F,Aedes,steering,b2,3,0,Just trying points far from b1 but I think I still pick it up in both
+220,57_20241016,5.0,2,M,Aedes,power,DLM,1,1,I think these are mostly the same units
+221,59_20241030,2.0,1,F,Aedes,power,DLM,1,1,"Didn't move Target 2, but signal is different now. Targets are DLM (posterior) and DLM (anterior). Target 2 is the same in all trials"
+222,59_20241030,3.0,1,F,Aedes,power,DLM,1,1,Trying to repeat axo 1. Targets are DLM (mid/posterior) and DLM (anterior). Target 2 is the same in all trials
+223,59_20241030,4.0,1,F,Aedes,power,DLM,1,0,Trying to repeat axo 0. Targets are DLM (mid) and DLM (anterior). Target 2 is the same in all trials
+224,60_20241031,0.0,1,F,Aedes,power,DLM,1,0,"For each fly this day, started with targets 1 & 2 in anterior DLMs, then moved target 1 posterior in increments. DLM(ant), DLM (ant)"
+225,60_20241031,1.0,1,F,Aedes,power,DLM,1,0,"Just moved target 1 in posterior direction. Turned EMG gain down to 5X (not EMG2). DLM(ant/mid), DLM (ant)"
+226,60_20241031,2.0,1,F,Aedes,power,DLM,1,0,"Same as above. DLM(mid), DLM (ant)"
+227,60_20241031,3.0,1,F,Aedes,power,DLM,1,0,"Same as above. DLM(mid/post), DLM (ant)"
+228,60_20241031,4.0,1,F,Aedes,power,DLM,1,0,"Moved target 1 back to anterior DLM for consistency check. DLM(ant), DLM (ant)"
+229,60_20241031,5.0,2,F,Aedes,power,DLM,1,0,"Pretty close electrodes; slow units. DLM(ant), DLM (ant)"
+230,60_20241031,6.0,2,F,Aedes,power,DLM,1,0,"Flight is weak, but I think okay. Again, kept target 2 and moved target 1 posterior. DLM(ant/mid), DLM (ant)"
+231,60_20241031,7.0,2,F,Aedes,power,DLM,1,0,"Not sure if getting overlapping units. DLM(mid), DLM (ant)"
+232,60_20241031,8.0,2,F,Aedes,power,DLM,1,0,"I think target 2 may have been jostled? DLM(mid/post), DLM (ant)"
+233,60_20241031,9.0,2,F,Aedes,power,DLM,1,0,"Another test with both targets in anterior DLM to check consistency. DLM(ant), DLM (ant)"
+234,60_20241031,10.0,3,F,Aedes,power,DLM,1,0,"Pretty close electrodes, same single unit. DLM(ant), DLM (ant)"
+235,60_20241031,11.0,3,F,Aedes,power,DLM,1,0,"Close to a large hair -- potential good landmark? DLM(ant/mid), DLM (ant)"
+236,60_20241031,12.0,3,F,Aedes,power,DLM,1,0,"Here I went against the trend and moved the target 1electrode anterior, splitting difference between axos 10 and 11. DLM(more ant than mid), DLM (ant)"
+237,60_20241031,13.0,3,F,Aedes,power,DLM,1,0,"Couldn't get target 1 in mid positions, so I went far posterior. DLM(post), DLM (ant)"
+238,60_20241031,14.0,3,F,Aedes,power,DLM,1,0,"Was able to get something more middle. DLM(mid/post), DLM (ant)"
+239,60_20241031,15.0,3,F,Aedes,power,DLM,1,0,"Another one with both targets in anterior DLMs for consistency. DLM(ant), DLM (ant)"
+240,61_20241101,0.0,1,F,Aedes,power,DLM,1,0,"Starting with close electrodes. DLM (ant), DLM (ant)"
+241,61_20241101,1.0,1,F,Aedes,power,DLM,1,0,"Target 1 signal is wild…  DLM (ant/mid), DLM (ant)"
+242,61_20241101,2.0,1,F,Aedes,power,DLM,1,0,"DLM (mid/post), DLM (ant)"
+243,61_20241101,3.0,1,F,Aedes,power,DLM,1,0,"Very close to tether glue.  DLM (post), DLM (ant)"
+244,61_20241101,4.0,1,F,Aedes,power,DLM,1,0,"Consistency check. DLM (ant), DLM (ant)"
+245,61_20241101,5.0,2,F,Aedes,power,DLM,1,0,"Both have the same units. DLM (ant), DLM (ant)"
+246,61_20241101,6.0,2,F,Aedes,power,DLM,1,0,"No obvious overlap in units. Forgot snapshot. DLM (ant/mid), DLM (ant)"
+247,61_20241101,7.0,2,F,Aedes,power,DLM,1,0,"Moving target 1 anterior to be closer to target 2. Now have overlap.  DLM (ant/mid), DLM (ant)"
+248,61_20241101,8.0,2,F,Aedes,power,DLM,1,0,"Repeating(ish) axo 6 to get a snapshot.  DLM (an/mid), DLM (ant)"
+249,61_20241101,9.0,2,F,Aedes,power,DLM,1,0,"Weak flight. DLM (post), DLM (ant)"
+250,62_20241108,0.0,1,F,Aedes,power,DLM,1,0,"At least on overlapping unit. Here trying the experiment where I move a ""bident"" across thorax.  DLM (ant), DLM (ant)"
+251,62_20241108,1.0,1,F,Aedes,power,DLM,2,0,"Just same big unit in both. DLM (mid), DLM (mid)"
+252,63_20241111,0.0,1,M,Aedes,power,DLM,4,0,"For all the male flies here, doing the same experiment where I put target 2 to record an anterior DLM and then move target 1 from the anterior to posterior notum. DLM ant, DLM ant"
+253,63_20241111,1.0,1,M,Aedes,power,DLM,4,0,"DLM ant/mid, DLM ant"
+254,63_20241111,2.0,1,M,Aedes,power,DLM,4,0,"DLM mid/post, DLM ant"
+255,63_20241111,3.0,1,M,Aedes,power,DLM,4,0,"DLM post, DLM ant"
+256,63_20241111,4.0,1,M,Aedes,power,DLM,4,0,"DLM ant/mid, DLM ant"
+257,63_20241111,5.0,1,M,Aedes,power,DLM,4,0,"DLM ant, DLM ant"
+258,63_20241111,6.0,2,M,Aedes,power,DLM,1,0,"DLM ant, DLM ant"
+259,63_20241111,7.0,2,M,Aedes,power,DLM,1,0,"DLM ant/mid, DLM ant"
+260,63_20241111,8.0,2,M,Aedes,power,DLM,1,0,"DLM mid/post, DLM ant"
+261,63_20241111,9.0,2,M,Aedes,power,DLM,1,0,"DLM post, DLM ant"
+262,63_20241111,10.0,2,M,Aedes,power,DLM,1,0,"DLM ant, DLM ant"
+263,63_20241111,11.0,3,F,Aedes,power,DLM,1,0,"For this fly, tried the moving ""bident"" thing again, although in later trials I also tried some DVM exploration. DLM ant, DLM ant"
+264,63_20241111,12.0,3,F,Aedes,power,DLM,2,0,"DLM mid, DLM mid"
+265,63_20241111,13.0,3,F,Aedes,power,DLM,3,0,"DLM post, DLM post"
+266,63_20241111,14.0,3,F,Aedes,power,DVM,4,0,"DVM (stripe, post), DVM (mid/post)"
+267,63_20241111,15.0,3,F,Aedes,power,DVM,5,0,"Moved target 1 to the stripe area, and then moved target 2 further posterior. DVM post, DVM post"
+268,63_20241111,16.0,3,F,Aedes,power,DVM,6,0,"Kept target 1 the same and moved target 2. DVM post, DVM mid/post"
+269,63_20241111,17.0,4,M,Aedes,power,DLM,1,1,"Just trying to beef up male data set. DLM ant/mid, DLM ant"
+270,63_20241111,18.0,4,M,Aedes,power,DVM,2,1,"Just trying to beef up male data set. DVM post, DVM mid/post"
+271,64_20241113,0.0,1,F,Aedes,power,DLM,1,0,"Nice units. One per probe. Looking at right DLM (ant/mid), right DLM (ant)"
+272,64_20241113,1.0,1,F,Aedes,power,DLM,1,0,"Kept target 2 the same and moved target 1 to stripe area.  DVM (mid/post), DLM (ant)"
+273,64_20241113,2.0,1,F,Aedes,power,DVM,2,0,"Moved target 1 more posterior and target 2 to where target 1 was previously. DVM (post), DVM (mid/post)"
+274,64_20241113,3.0,1,F,Aedes,power,DLM,3,0,"Measuring a left/right DLM pair. Left DLM (mid), right DLM (mid)"
+275,64_20241113,4.0,1,F,Aedes,power,DLM,4,0,"Another L/R pair, further anterior. Left DLM (mid/ant), right DLM (mid/ant)"
+276,64_20241113,6.0,1,F,Aedes,power,DVM,5,0,"Should be the same as axo 5. Note that we're back to both recordings on the right side. DVM (post), DVM (mid/post)"
+277,64_20241113,7.0,2,F,Aedes,power,DLM,1,0,"Mosquito was a little higher up than usual, so mic signal is weak. DLM (ant/mid), DLM (ant)"
+278,64_20241113,8.0,2,F,Aedes,power,DLM,2,0,"Moved both probes posterior. Flight is a bit weak here. DLM (mid), DLM (ant/mid)"
+279,65_20241114,0.0,1,F,Aedes,power,DLM,1,0,"Two units for target 2. One for target 1. DLM (mid), DLM (ant/mid)"
+280,65_20241114,1.0,1,F,Aedes,power,DLM,1,0,"Target 2 is the same place. Target 1 moved to stripe--near a bristle. DVM (mid/post), DLM (ant/mid)"
+281,65_20241114,2.0,1,F,Aedes,power,DLM,2,0,"Moved target 2 to a posterior DLM (in line with target 1). Target 1 stayed fixed. I think I'm in DLM 6 and DVM O (based on Levine and Malcolm convenitons). DVM (mid/post), DLM (post)"
+282,65_20241114,3.0,1,F,Aedes,power,DVM,3,0,"Tried to get target 2 where target 1 was (stripe) and moved target 1 back. DVM (post), DVM (mid/post)"
+283,65_20241114,4.0,2,F,Aedes,power,DLM,1,0,"I think I have three right side DLM units (across 2 probes). DLM (mid), DLM (ant/mid)"
+284,65_20241114,5.0,2,F,Aedes,power,DLM,1,0,"Kept target 2 the same. Moved target 1 to DVM stripe. DVM (mid/post), DLM (ant/mid)"
+285,65_20241114,6.0,2,F,Aedes,power,DVM,2,0,"Moved target 2 to previous target 1 position and moved target 1 back (posterior). DVM (post), DVM (mid/post)"
+286,65_20241114,7.0,2,F,Aedes,power,DLM,3,0,"Left/right mid DLM pair, but extracellular so multiunit. Right DLM (mid), left DLM (mid)"
+287,66_20241115,0.0,1,M,Aedes,power,DLM,1,0,"Two units for target 1. DLM (ant/mid), DLM (ant)"
+288,66_20241115,1.0,1,M,Aedes,power,DLM,2,0,"Have a left/right pairing where I think each is measuring two separate units. Target 1 was not moved from previous trial. Right DLM (ant/mid), left DLM (ant/mid)"
+289,66_20241115,2.0,1,M,Aedes,power,DLM,3,0,"Both on right side again. I think I have DLM 6/DVM O again (or I'm in that area anyway). DVM (mid/post), DLM (post)"
+290,67_20250205,0.0,1,F,Drosophila,power,DLM,None,0,"BNC issue caused data to drop out at end. Total gain of 500X (100X from amp, 5 from LFP202A). I think it's DLM 2/3"
+291,67_20250205,1.0,1,F,Drosophila,power,DVM,None,0,Good recording. Total gain 200X. I think it's DVMa
+292,67_20250205,2.0,2,F,Drosophila,power,DLM,1,0,"Total gain 200X. Targets are right DLM4/5 and right DLM2/3, respectively"
+293,67_20250205,3.0,3,F,Drosophila,power,DLM,1,0,"Total gain 200X. Getting negative reflections of spikes in other channel. Targets are right DLM4/5 and right DLM2/3, respectively. "
+294,67_20250205,4.0,4,F,Drosophila,power,DLM,1,0,"Total gain 200X. Getting negative reflections of spikes in other channel. Good view for Iding. Targets are right DLM4/5 and right DLM2/3, respectively. "
+295,67_20250205,5.0,4,F,Drosophila,power,DLM,2,0,"Same esetup as before but I moved Target 2 anterior (so more like DLM 1/2). Why is target 2 so much slower? Do I have two units in Target 1? DLM 4/5, DLM 1/2"
+296,67_20250205,6.0,4,F,Drosophila,power,DLM,2,0,"From previous file, just moved Target 1 anterior and increased total gain to 500X. DLM 3/4, DLM 1/2"
+297,67_20250205,8.0,6,F,Drosophila,power,DLM,1,0,"Total gain 200X. DLM 4/5, DLM 2/3"
+298,68_20250206,0.0,1,F,Drosophila,power,DLM,1,0,Total gain 200X. Target 2 is clipping. DLM 4/5 and DLM 2/3
+299,68_20250206,1.0,1,F,Drosophila,power,DLM,1,0,Moved Target 1 posterior; left Target 2 the same. Decreased Target 2 gain to 100X total. DLM 5/6 and DLM 2/3
+300,68_20250206,2.0,2,F,Drosophila,power,DLM,1,0,Back to 200X gain for both channels. DLM 4/5 and DLM 2/3
+301,68_20250206,3.0,2,F,Drosophila,power,DLM,2,0,Moved Target 2 anterior. Really fast spikes? DLM 4/5 and DLM 1/2
+302,68_20250206,4.0,3,M,Drosophila,power,DLM,1,0,First male! 200X gain on both. DLM 4 and DLM 2/3
+303,68_20250206,5.0,4,M,Drosophila,power,DLM,2,0,200X total gain. Stopped flying at the end. DLM 4/5 and DLM 2/3
+304,69_20250207,0.0,1,M,Drosophila,power,DLM,1,0,"Target 1 gain at 200X; Target 2 at 100X. Stopped flying at end, so only got ~40 seconds. DLM 4/5 and DLM 2/3"
+305,70_20250212,0.0,1,M,Drosophila,power,DLM,1,0,"Some mic noise. Targets 1 and 2 have total gains 500X and 200X, respectively. Why is spike rate so different? DLM 4/5 and DLM 2/3"
+307,70_20250212,2.0,3,M,Drosophila,power,DLM,1,0,"Finnicky fly but good recording. Targets 1 and 2 have total gains 200X and 100X, respectively. DLM 4/5 and DLM 2/3"
+308,71_20250213,0.0,1,M,Drosophila,power,DLM,1,0,Total gain 500X for both. Stopped flying after ~60 s. No pic. DLM 4/5 and DLM 2/3
+309,71_20250213,1.0,1,M,Drosophila,power,DLM,1,0,Only moved Target 1 and turned its gain down to 200X. Have an extra weird waveform in there -- ignore. DVM T and DLM 2/3
+310,71_20250213,2.0,1,M,Drosophila,power,DLM,2,0,Just moved Target 2 posterior. Same weird waveform in Target 1. DVM T and DLM 4/5
+312,71_20250213,4.0,2,M,Drosophila,power,DLM,1,0,Put in Target 2. Total gain 200X for both. DVM T and DLM 2/3
+313,71_20250213,5.0,3,M,Drosophila,power,DLM,1,0,Total gain 200X for both. DVM T and DLM 2/3
+314,71_20250213,6.0,3,M,Drosophila,power,DLM,1,0,Just moved Target 1 medial but it looks very similar to before. DO I have a DLMN or DVM? Target 2 is still DLM 2/3
+315,71_20250213,8.0,3,M,Drosophila,power,DLM,1,0,Moved Target 1 back medial as sanity check. DLM 4/5 and DLM 2/3
+316,72_20250214,0.0,1,M,Drosophila,power,DLM,1,0,200X and 500X total gain. Target 2 has multiple units. DVM T and DLM 2/3
+317,72_20250214,1.0,1,M,Drosophila,power,DLM,1,0,Moved Target 1 medially. DLM 4/5 and DLM 2/3
+318,72_20250214,2.0,2,M,Drosophila,power,DLM,1,0,Total gain 200X for both. DVM T and DLM 2/3
+319,72_20250214,3.0,2,M,Drosophila,power,DLM,1,0,Moved Target 1 medially to get DLM. Also reinserted ground. DLM 4/5 and DLM 2/3
+320,72_20250214,4.0,2,M,Drosophila,power,DVM,2,0,Gains at 500X and 200X. DVM R? and DVM T
+321,73_20250216,0.0,1,M,Drosophila,power,DLM,1,0,"Gains at 500X and 200X. For Target 1, I'm a little posterior to bristle. DVM T/S and DLM 3"
+322,73_20250216,1.0,1,M,Drosophila,power,DLM,2,0,"Reduced Target 1 gain to 200X. Tried to just move Target 1, but Target 2 popped out so had to replace. DLM 4/5 and DLM 2/3"
+323,73_20250216,2.0,2,F,Drosophila,power,DLM,1,0,"Target 1 has another small unit, but might be hard to extract. 200X gain for all. DLM 4/5 and DLM 2/3"
+324,73_20250216,3.0,2,F,Drosophila,power,DLM,2,0,3 distinguishable units but maybe weak flight. 200X gain all. Target 1 is pretty deep. DLM 3/4? And DLM 2?
+325,73_20250216,4.0,3,F,Drosophila,power,DLM,1,0,Tried normal placement. Nice recordings. 200X and 100X gains. DLM 4/5 and DLM 2/3
+326,73_20250216,5.0,3,F,Drosophila,power,DLM,2,0,"Moved Target 2 posterior and deeper. I think each electrode is picking up the other's signal as a smaller, positive spike. 200X and 100X. I think this one has a nice splay state example. DLM 4/5 and DLM 3/4"
+327,73_20250216,6.0,3,F,Drosophila,power,DLM,2,0,Moved Target 1 posterior. 500X and 200X gains. Some clipping in Target 1
+331,76_20250225,0.0,1,M,Aedes,power,DLM,1,0,"Each channel has a few other small units. During recording, turned down audio monitor volume to reduce signal in mic. DLM mid/post and DLM ant/mid"
+332,76_20250225,1.0,1,M,Aedes,power,DLM,2,0,"Moved both targets. Channel 2 has units that could be hard to distinguish, but mostly I just want to DVM recording. DVM post and DLM "
+333,76_20250225,2.0,2,M,Aedes,power,DLM,1,0,"This one is either a much stronger flier than previous, or the angle with the mic is better. Both channels have one good unit"
+334,76_20250225,3.0,2,M,Aedes,power,DLM,1,0,Moved Target 1 medially to a DLM
+335,76_20250225,4.0,2,M,Aedes,power,DLM,1,0,"Just moved Target 1 closer to Target 2. Interestingly, they both pick up essentially the same thing, despite being a ways apart. Further evidence that there are not many motor units in Aedes power system"
+336,77_20250226,0.0,1,M,Aedes,power,DLM,1,0,Seems to be flying well. One big and one small unit in each channel. Gains are 1000X and 500X. DLM (post/mid) and DLM (ant/mid)
+337,77_20250226,1.0,2,M,Aedes,power,DLM,1,0,I think this one was maybe stabbed too many times. Flight is in and out. Tried to aim for same spots as previous fly. 1000X and 500X gains. DLM (post/mid) and DLM (ant/mid)
+338,77_20250226,2.0,2,M,Aedes,power,DLM,1,0,Just moved Target 1 a little posterior (right next to hinge) and got a better unit. Gains at 500X for all. DLM (post) and DLM (ant/mid)
+339,77_20250226,3.0,3,M,Aedes,power,DLM,1,0,Inserting two electrodes really seems to affect flight. 500X gain all. Each channel has multiple units. DLM (post) and DLM (ant/mid)
+340,77_20250226,4.0,3,M,Aedes,power,DLM,1,0,"Same positions and gains, but mosquito seems to fly better in bright light? 500X gain all.  DLM (post) and DLM (ant/mid)"
+342,78_20250227,0.0,1,F,Aedes,power,DLM,None,0,Trying a female DLM. Weak flight. 200X gain. DLM (ant/mid)
+372,87_20250324,1.0,1,M,Drosophila,power,DVM,None,0,DVM A maybe?
+373,87_20250324,2.0,2,M,Drosophila,power,DVM,None,0,Seems good. DVM T?
+374,87_20250324,4.0,3,M,Drosophila,power,DLM,1,0,Getting some negative reflections. DVM T? and DLM 2/3
+375,87_20250324,5.0,3,M,Drosophila,power,DLM,1,0,Target 1 has 2 units. Flight ended around 1 minute. DLM 4/5 and DLM 2/3
+381,87_20250324,11.0,7,F,Drosophila,power,DLM,1,0,Kept Target 1 in the same place but added Target 2 anterior to get another DLM. DLM 3/4 and DLM 2/3
+383,88_20250326,1.0,1,M,Drosophila,power,DVM,1,0,Seemslike maybe weak flight. Target 1 in same spot. DVM T? and DVM A?
+386,88_20250326,4.0,3,F,Drosophila,power,DVM,1,0,Target 1 stayed the same. Did waveform change? DVM T? and DVM A?
+388,88_20250326,7.0,4,M,Drosophila,power,DVM,None,0,"Tired to just add Target 2, but Target 1 was messed up in the process. DVM A?"
+390,88_20250326,9.0,5,F,Drosophila,power,DVM,1,0,"Tried to leave Target 1 the same, but may have bumped it. Two units in Target 2. DVM T? and DVM A?"
+392,88_20250326,11.0,6,F,Drosophila,power,DLM,1,0,Tried to keep Target 1 as is from last trial. DVM T? and DLM 3?

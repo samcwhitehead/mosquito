@@ -66,15 +66,15 @@ EMG_HIGHCUT_POWER_DROSOPHILA = 10000  # 2000  # higher cutoff frequency for musc
 EMG_BTYPE_POWER = 'bandpass'  # butter filter type (bandpass or bandstop)
 EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
 EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
-THRESH_FACTORS_POWER = (2.0, 15)  # (0.45, 25)   # (1.5, 15)  # factors multiplied by thresh in spike peak detection
+THRESH_FACTORS_POWER = (1.5, 15)  # (2, 15) # (0.45, 25)   # factors multiplied by thresh in spike peak detection
 
 # emg filter params - STEERING
-EMG_LOWCUT_STEER = 700  # 550  # 300  # 700
+EMG_LOWCUT_STEER = 550  # 550  # 300  # 700
 EMG_HIGHCUT_STEER = 10000
 EMG_BTYPE_STEER = 'bandpass'
 EMG_WINDOW_STEER = 32  # 32
 EMG_OFFSET_STEER = 4
-THRESH_FACTORS_STEER = (2.5, 6)  # (0.55, 4)  # (0.75, 4.0)  # (0.5, 4) # (0.35, 0.7)  # (0.65, 8)
+THRESH_FACTORS_STEER = (1.5, 6)  # (0.55, 4)  # (0.75, 4.0)  # (0.5, 4) # (0.35, 0.7)  # (0.65, 8)
 
 # general spike detection
 REMOVE_EDGE_CASE_FLAG = True  # normally True
@@ -1341,8 +1341,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '83_20250310'  # '33_20240626'  # '32_20240625'
-    axo_num_list = [2]   # np.arange(5, 10)  #
+    data_folder = '91_20250331'  # '33_20240626'  # '32_20240625'
+    axo_num_list = [7]  #
 
     # loop over axo files to analyze
     for axo_num in axo_num_list:
