@@ -1340,9 +1340,9 @@ def load_processed_data(folder_id, axo_num,
 if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
-    data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '91_20250331'  # '33_20240626'  # '32_20240625'
-    axo_num_list = [7]  #
+    data_root = r'C:\Users\samcw\Dropbox\Mosquitoes\Data'  # /media/sam/SamData/Mosquitoes
+    data_folder = '83_20250310'  # '33_20240626'  # '32_20240625'
+    axo_num_list = [4]  #
 
     # loop over axo files to analyze
     for axo_num in axo_num_list:
