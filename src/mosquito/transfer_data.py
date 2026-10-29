@@ -38,11 +38,20 @@ DATE = None
 #                  ]  # folder to save output to
 
 # define paths to data
-root_path = '/media/sam/SamData/Mosquitoes/testing'
+root_path = 'C:\\Users\\whitehead.262\\Documents'
 vid_path = os.path.join(root_path, 'vid_data')  # folder with high speed video
 snapshot_path = os.path.join(root_path, 'snapshots')  # folder with snapshots of electrode position
-axo_path = os.path.join(root_path, 'axo_data')  # folder with abf files
-out_path = os.path.join(root_path, 'out')  # folder to save output to
+axo_path = os.path.join(root_path, 'Molecular Devices', 'pCLAMP', 'Data')  # folder with abf files
+
+# path to save to --shared folder
+absolute_path = str(Path(__file__).resolve()) # path to data file
+if "narciso.11" in absolute_path:
+    out_path = Path("C:/Users/narciso.11/OneDrive - The Ohio State University/Whitehead, Samuel's files - mosquito_ephys/mosquito-data/")
+elif "whitehead.262" in absolute_path:
+    out_path  = Path(r"C:/Users/whitehead.262/OneDrive - The Ohio State University/mosquito_ephys/mosquito-data")
+else:
+    raise Exception("Not clear which root directory to search for data")
+out_path = str(out_path )
 
 # out_path = ''
 # cc = 0
@@ -224,7 +233,7 @@ if __name__ == "__main__":
 
     # take only ones that belong to current date
     axo_dir_fns = [os.path.basename(fn) for fn in axo_dir]
-    axo_dates = ['-'.join(fn.split('_')[:-1]) for fn in axo_dir_fns]
+    axo_dates = ['-'.join(fn.split('_')[:3]) for fn in axo_dir_fns]
     axo_dates_match_idx = [(date.fromisoformat(ad) == folder_date) for ad in axo_dates]
     axo_dir_match = [axo_dir[ith] for ith in range(len(axo_dir)) if axo_dates_match_idx[ith]]
     axo_dir_match = sorted(axo_dir_match)
