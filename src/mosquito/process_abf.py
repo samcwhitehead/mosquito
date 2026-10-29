@@ -407,7 +407,7 @@ def detect_flight_bouts(mic, fs, rolling_window=ROLLING_WINDOW,
     # remove stop bouts that are too short
     stop_bouts = idx_by_thresh(~flying_idx_keep)
     stop_bouts_drop = [bout for bout in stop_bouts if (1 / fs) * len(bout) <
-                       min_bout_duration]
+                       0.5*min_bout_duration]
     for bout in stop_bouts_drop:
         # adding back in too-short stop bouts.
         # the +3 is due to a quirk of idx_by_thresh
@@ -1341,8 +1341,8 @@ if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
     data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '91_20250331'  # '33_20240626'  # '32_20240625'
-    axo_num_list = [7]  #
+    data_folder = '103_20260721'  # '33_20240626'  # '32_20240625'
+    axo_num_list = [14]  # np.arange(14,18) #
 
     # loop over axo files to analyze
     for axo_num in axo_num_list:

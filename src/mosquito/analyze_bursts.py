@@ -386,6 +386,7 @@ def realign_spikes(spikes, spike_idx, emg, window=BURST_WINDOW,
         idx_range = np.arange(idx - window, idx + window)
         spike = emg[idx_range]
 
+
         # subtract off value at initial time point
         spike = signal.detrend(spike)
         spike -= spike[0]

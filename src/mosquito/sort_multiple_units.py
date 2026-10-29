@@ -639,8 +639,8 @@ def run_sorting_on_file(data, min_spike_rate=MIN_SPIKE_RATE_POWER,
 if __name__ == "__main__":
     # TEMP -- try an example data file
     # load data file
-    data_folder = 91  # 66 # 65
-    axo_num = 9  # 1  # 4
+    data_folder = 93  # 66 # 65
+    axo_num = 3  # 1  # 4
 
     data = load_processed_data(data_folder, axo_num)
 
