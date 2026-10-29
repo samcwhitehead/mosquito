@@ -36,6 +36,17 @@ except ModuleNotFoundError:
 # ---------------------------------------
 # PARAMS
 # ---------------------------------------
+# which folder and files to analyze
+absolute_path = str(Path(__file__).resolve())
+if "narciso.11" in absolute_path:
+    DATA_ROOT = Path("C:/Users/narciso.11/OneDrive - The Ohio State University/Whitehead, Samuel's files - mosquito_ephys/mosquito-data/")
+elif "whitehead.262" in absolute_path:
+    DATA_ROOT = Path(r"C:/Users/whitehead.262/OneDrive - The Ohio State University/mosquito_ephys/mosquito-data")
+else:
+    raise Exception("Not clear which root directory to search for data")
+DATA_FOLDER = None  # '103_20260721'  # '33_20240626'  # '32_20240625'
+AXO_NUM_LIST = None  # axo_num_list = [0, 1, 2, 14, 15, 16, 17 ]  #
+
 # debug?
 DEBUG_FLAG = True
 
@@ -66,7 +77,7 @@ EMG_HIGHCUT_POWER_DROSOPHILA = 10000  # 2000  # higher cutoff frequency for musc
 EMG_BTYPE_POWER = 'bandpass'  # butter filter type (bandpass or bandstop)
 EMG_WINDOW_POWER = 2048  # number of time points to get when collecting spike windows
 EMG_OFFSET_POWER = 256  # peak offset when storing spike windows
-THRESH_FACTORS_POWER = (1.5, 15)  # (2, 15) # (0.45, 25)   # factors multiplied by thresh in spike peak detection
+THRESH_FACTORS_POWER = (1.0, 200)  # (1.5, 200) # (2, 15) # (0.45, 25)   # factors multiplied by thresh in spike peak detection
 
 # emg filter params - STEERING
 EMG_LOWCUT_STEER = 550  # 550  # 300  # 700
@@ -700,6 +711,14 @@ def detect_spikes(emg, fs, window=EMG_WINDOW_POWER, offset=EMG_OFFSET_POWER,
                                  height=(min_height, max_height),
                                  distance=min_peak_dist)  # , prominence=(0.1, None))
 
+    # # TEMP plot peaks
+    # if viz_flag:
+    #     fig, ax = plt.subplots()
+    #     t = (1/fs)*np.arange(emg.size)
+    #     ax.plot(t, peak_signal)
+    #     ax.plot(t[peaks], peak_signal[peaks], 'rx')
+    #     plt.show()
+
     # extract window around detected peaks (+/- spike window)
     n_pts = emg.size
     spike_list = []
@@ -1288,7 +1307,7 @@ def save_processed_data(filename, abf_dict, file_type='.pkl'):
 
 # ---------------------------------------------------------------------------------
 def load_processed_data(folder_id, axo_num,
-                        root_path='/media/sam/SamData/Mosquitoes',
+                        root_path=r"C:\\Users\\whitehead.262\\OneDrive - The Ohio State University\\mosquito_ephys\\mosquito-data", 
                         subfolder_str='*_{:04d}',
                         data_suffix='processed',
                         ext='.pkl'):
@@ -1340,16 +1359,58 @@ def load_processed_data(folder_id, axo_num,
 if __name__ == "__main__":
     # -----------------------------------------------------------
     # path to data file
-    data_root = '/media/sam/SamData/Mosquitoes'
-    data_folder = '91_20250331'  # '33_20240626'  # '32_20240625'
-    axo_num_list = [7]  #
+    data_root = str(DATA_ROOT)  # make sure we have string version of root folder
+
+    # get experiment folder
+    if DATA_FOLDER is None:
+        # if no experiment folder is specified at the top of this file, ask for user input 
+        expr_num_user = input("Enter the experiment number (the number preceding the date string) for the folder to analyze:\n")
+
+        # then use user input to find the right folder
+        pattern = f"{int(expr_num_user)}_????????"
+        matches = list(Path(data_root).glob(pattern))
+        matches = [
+            p for p in Path(data_root).glob(pattern)
+            if p.is_dir()
+        ]
+
+        if not matches:
+            raise FileNotFoundError(f"No folder found for {expr_num_user}")
+
+        if len(matches) > 1:
+            raise ValueError(f"Multiple folders found for {expr_num_user}: {matches}")
+        
+        data_folder = matches[0].stem
+        print(data_folder)
+
+    else:
+        # otherwise just use what's specified
+        data_folder = DATA_FOLDER
+
+    # get list of axo files to analyze 
+    if AXO_NUM_LIST is None:
+        # if no axo list provided, ask user to specify
+        user_input = input("Enter file numbers separated by commas, or 'all': ")
+
+        if user_input.strip().lower() == "all":
+            axo_folder_list = sorted(p.stem
+                                  for p in Path(os.path.join(data_root, data_folder)).iterdir() 
+                                  if p.is_dir())
+            axo_num_list = [int(str(p).split('_')[-1]) for p in axo_folder_list]
+        else:
+            axo_num_list = [int(n.strip()) for n in user_input.split(",")]
+
+    else:
+        axo_num_list = AXO_NUM_LIST
 
     # loop over axo files to analyze
     for axo_num in axo_num_list:
         # get path to .abf (axo) file
         data_path = os.path.join(data_root, data_folder,
                                  '*_{:04d}'.format(axo_num))
+        print(data_path)
         abf_search = glob.glob(os.path.join(data_path, '*.abf'))
+        print(abf_search)
         if len(abf_search) != 1:
             print('Could not find unique file for axo {}'.format(axo_num))
             continue
