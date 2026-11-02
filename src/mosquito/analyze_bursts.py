@@ -12,6 +12,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from scipy import signal
+from dotenv import load_dotenv
 
 try:
     from util import butter_bandpass_filter, moving_avg, moving_slope
@@ -19,9 +20,15 @@ try:
 except ModuleNotFoundError:
     from .util import butter_bandpass_filter, moving_avg, moving_slope
     from .process_abf import load_processed_data, detrend_emg
+
+
 # ---------------------------------------
 # PARAMS
 # ---------------------------------------
+# load local environment variables
+load_dotenv()
+DATA_ROOT = os.getenv("SAVE_DATA_PATH")
+
 # size of window for realigned bursts
 BURST_WINDOW = 1024  # was 1028? # number of time points to get when collecting spike windows
 
@@ -421,25 +428,44 @@ def realign_spikes(spikes, spike_idx, emg, window=BURST_WINDOW,
 
 
 # ---------------------------------------------------------------------------------
-def run_spike_detection(data,
-                        deriv_height_factor=DERIV_HEIGHT_FACTOR,
-                        min_height_factor=MIN_HEIGHT_FACTOR,
-                        deriv_width_bounds=DERIV_WIDTH_BOUNDS,
-                        supportlength=SUPPORTLENGTH,
-                        modelorder=MODELORDER,
-                        realign_thresh=THRESH_FACTOR,
-                        filt_order=FILT_ORDER,
-                        moving_avg_win=MOVING_AVG_WIN,
-                        refine_flag=REFINE_FLAG,
-                        detrend_flag=DETREND_FLAG,
-                        filt_flag=FILT_FLAG,
-                        viz_flag=False):
+def run_spike_detection_channel(emg,
+                                emg_filt,
+                                burst_idx,
+                                spikes,
+                                window,
+                                fs=None,
+                                wbf=None,
+                                flying_idx=None,
+                                deriv_height_factor=DERIV_HEIGHT_FACTOR,
+                                min_height_factor=MIN_HEIGHT_FACTOR,
+                                deriv_width_bounds=DERIV_WIDTH_BOUNDS,
+                                supportlength=SUPPORTLENGTH,
+                                modelorder=MODELORDER,
+                                realign_thresh=THRESH_FACTOR,
+                                filt_order=FILT_ORDER,
+                                moving_avg_win=MOVING_AVG_WIN,
+                                refine_flag=REFINE_FLAG,
+                                detrend_flag=DETREND_FLAG,
+                                filt_flag=FILT_FLAG,
+                                viz_flag=False):
     """
-    Function to perform spike detection on all bursts within a trial, taking a
-    data dictionary as input
+    A little kludgy. A way to preserve the input structure of run_spike_detection
+    but keep things readable now that I have some multi-channel recordings and
+    I'm not always storing one trace per data file
 
     Args:
-        data: data dictionary from process_abf.py
+        emg: raw emg trace
+        emg_filt: filtered emg trace
+        burst_idx: index of time series during which macro spikes are detected. note that
+            this is keyed as "spike_idx" in the data dictionary, but now we need to
+            differentiate between the macro events and then the mini spikes that happen
+            within a large event, referred to here as a burst
+        spikes: array of clipped spike (in this case actually BURST) waveforms
+        window: window size for
+        fs: sampling frequency. If None, we just can't do additional filtering
+        wbf: wingbeat frequency time series. If None, we just can't do additional filtering
+        flying_idx: index of time series values giving periods of flight.
+            fs: sampling frequency. If None, we just can't do additional filtering
         deriv_height_factor: number to multiply by burst waveform derivative height
             to get minimum height in peak detection
         min_height_factor: number to multiply by burst_waveform height
@@ -456,34 +482,22 @@ def run_spike_detection(data,
         viz_flag: bool, visualize spike detection?
 
     Returns:
+        peaks_df: pandas data frame containing information on all burst peaks
 
-
-    TODO:
-        - add spike props?
     """
-    # ---------------------------------------------------------
-    # Analysis
-    # ---------------------------------------------------------
     # read out the data we need for peak detection
-    emg = data['emg']
-    emg_filt = data['emg_filt']
     emg_raw = emg.copy()
-    burst_idx = data['spike_idx']
-    window = round(data['params']['emg_window'] / 2)
+
 
     # try an additional filtering?
-    if filt_flag:
-        wbf = data['wbf']
-        flying_idx = data['flying_idx']
-        fs = data['sampling_freq']
-
+    if filt_flag and wbf is not None and flying_idx is not None and fs is not None:
         emg = filter_for_spike_detection(emg, fs, wbf,
                                          flying_idx=flying_idx,
                                          filt_order=filt_order,
                                          moving_avg_win=moving_avg_win)
 
     # realign bursts to rise time
-    _, realigned_idx = realign_spikes(data['spikes'], burst_idx, emg_raw,
+    _, realigned_idx = realign_spikes(spikes, burst_idx, emg_raw,
                                       window=window, thresh_factor=realign_thresh)
 
     # get bursts into zeroed array
@@ -564,7 +578,7 @@ def run_spike_detection(data,
         # figure out dimensions for plot grid
         n_cols = 3
         n_rows = int(np.ceil((n_spikes_unique.size + 1) / n_cols))
-        fig_height = 4*n_rows
+        fig_height = 4 * n_rows
 
         fig, ax_list = plt.subplots(n_rows, n_cols, figsize=(10, fig_height))
         ax_list = ax_list.ravel()
@@ -593,20 +607,85 @@ def run_spike_detection(data,
         ax_list[ith + 1].set_ylabel('count')
 
         # remove other axes
-        for kth in range(ith+2, len(ax_list)):
+        for kth in range(ith + 2, len(ax_list)):
             ax_list[kth].remove()
 
         # show figure
         fig.tight_layout()
         plt.show()
 
-    # return
+    # ---------------------------------------------------------
+    # Return
+    # ---------------------------------------------------------
+    return peaks_df
+
+# ---------------------------------------------------------------------------------
+def run_spike_detection(data, **kwargs):
+
+    """
+
+    Function to perform spike detection on all bursts within a trial, taking a
+    data dictionary as input
+
+    Args:
+        data: data dictionary from process_abf.py
+        deriv_height_factor: number to multiply by burst waveform derivative height
+            to get minimum height in peak detection
+        min_height_factor: number to multiply by burst_waveform height
+            to get minimum height for peaks
+        deriv_width_bounds: min and max *derivative* peak width, in index units
+        supportlength, modelorder: parameters for moving_slope derivative function
+            (see util.moving_slope)
+        realign_thresh: factor used to find rise time in realign_spikes
+        filt_order: order for bandstop filter in filter_emg_for_spike_detection
+        moving_avg_win: rolling mean window size in filter_emg_for_spike_detection
+        refine_flag: try an additional refinement step for peak location at the end?
+        detrend_flag: detrend emg signal prior to spike detection?
+        filt_flag: try an additional filtering of data to remove wbf noise?
+        viz_flag: bool, visualize spike detection?
+
+    Returns:
+
+
+    TODO:
+        - add spike props?
+        - adjust for multichannel recordings
+    """
+    # ---------------------------------------------------------
+    # Analysis
+    # ---------------------------------------------------------
+    # read out the data we need for peak detection
+    emg = data['emg']
+    emg_filt = data['emg_filt']
+    burst_idx = data['spike_idx']
+    spikes = data['spikes']
+    window = round(data['params']['emg_window'] / 2)
+
+    if not isinstance(emg_filt, list):
+        emg_filt = [emg_filt]
+        burst_idx = [burst_idx]
+        spikes = [spikes]
+
+        # initialize storage for dataframes
+    df_list = []
+
+    # loop over channels and run the per-channel spike detection
+    for channel in range(len(emg_filt)):
+        peaks_df_curr  = run_spike_detection_channel(emg[channel], emg_filt[channel], burst_idx[channel],
+                                                     spikes[channel], window, fs=data['sampling_freq'], wbf=data['wbf'],
+                                                     flying_idx=data['flying_idx'], **kwargs)
+
+        peaks_df_curr['channel'] = channel
+        df_list.append(peaks_df_curr)
+
+    # return a combined dataframe
+    peaks_df = pd.concat(df_list, ignore_index=True)
     return peaks_df
 
 
 # ---------------------------------------------------------------------------------
 def load_burst_data(folder_id, axo_num,
-                    root_path='/media/sam/SamData/Mosquitoes',
+                    root_path=DATA_ROOT,
                     subfolder_str='*_{:04d}',
                     data_file_str='spike_df',
                     ext='.pkl'):
@@ -656,8 +735,8 @@ def load_burst_data(folder_id, axo_num,
 # ---------------------------------------
 if __name__ == "__main__":
     # for now, use this as burst detection check
-    data_folder = 23  # '23_20240517'  #
-    axo_num = 2  # 8  #  6  #
+    data_folder = 55  # '23_20240517'  #
+    axo_num = 0  # 8  #  6  #
 
     # load data
     data = load_processed_data(data_folder, axo_num)
