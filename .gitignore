@@ -88,3 +88,4 @@ src/_old/
 *.pyc
 *.egg-info
 *.iml
+.env
