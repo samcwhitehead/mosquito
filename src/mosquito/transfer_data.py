@@ -18,46 +18,26 @@ import imageio.v3 as iio
 
 from pathlib import Path
 from datetime import date, datetime
-
+from dotenv import load_dotenv
 
 # ---------------------------------------
 # PARAMS
 # ---------------------------------------
+# Load local environmental variables
+load_dotenv()
+
+# path to find data files that we'd like to transfer
+TO_TRANSFER_ROOT = os.getenv("AXOSCOPE_DATA_PATH")
+vid_path = os.path.join(TO_TRANSFER_ROOT , 'vid_data')  # folder with high speed video
+snapshot_path = os.path.join(TO_TRANSFER_ROOT , 'snapshots')  # folder with snapshots of electrode position
+axo_path = os.path.join(TO_TRANSFER_ROOT , 'Molecular Devices', 'pCLAMP', 'Data')  # folder with abf files
+
+# path to save data to
+OUT_PATH=os.getenv("SAVE_DATA_PATH")
+
 # date for the data we want to transfer right now. if None, ask for input
 # can be in some isoform (e.g. 'YYYY-MM-DD') or date.today()
 DATE = None
-
-# # define paths to data
-# vid_path = os.path.normpath(
-#     'C:\\Users\\swhitehe\\Documents\\Photron\\PFV4\\mosquito_testing')  # folder with high speed video
-# snapshot_path = os.path.normpath(
-#     'C:\\Users\\swhitehe\\Documents\\Photron\\PFV4\snapshots')  # folder with high speed video
-# axo_path = os.path.normpath('C:\\Users\\swhitehe\\Documents\\Molecular Devices\\pCLAMP\\Data')  # folder with abf files
-# out_path_list = [os.path.normpath('E:\\HighSpeedVideo\\mosquito'),
-#                  os.path.normpath('E:\\Mosquitoes'),
-#                  ]  # folder to save output to
-
-# define paths to data
-root_path = 'C:\\Users\\whitehead.262\\Documents'
-vid_path = os.path.join(root_path, 'vid_data')  # folder with high speed video
-snapshot_path = os.path.join(root_path, 'snapshots')  # folder with snapshots of electrode position
-axo_path = os.path.join(root_path, 'Molecular Devices', 'pCLAMP', 'Data')  # folder with abf files
-
-# path to save to --shared folder
-absolute_path = str(Path(__file__).resolve()) # path to data file
-if "narciso.11" in absolute_path:
-    out_path = Path("C:/Users/narciso.11/OneDrive - The Ohio State University/Whitehead, Samuel's files - mosquito_ephys/mosquito-data/")
-elif "whitehead.262" in absolute_path:
-    out_path  = Path(r"C:/Users/whitehead.262/OneDrive - The Ohio State University/mosquito_ephys/mosquito-data")
-else:
-    raise Exception("Not clear which root directory to search for data")
-out_path = str(out_path )
-
-# out_path = ''
-# cc = 0
-# while not os.path.exists(out_path):
-#     out_path = out_path_list[cc]
-#     cc += 1
 
 # README file info
 readme_rows = ['Date', 'Species', 'Eclosion date', 'Amplifier',

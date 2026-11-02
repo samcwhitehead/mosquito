@@ -27,6 +27,7 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
 from matplotlib.widgets import Button, Slider
+from dotenv import load_dotenv
 
 try:
     from util import iir_notch_filter, butter_bandpass_filter, idx_by_thresh
@@ -36,14 +37,11 @@ except ModuleNotFoundError:
 # ---------------------------------------
 # PARAMS
 # ---------------------------------------
-# which folder and files to analyze
-absolute_path = str(Path(__file__).resolve())
-if "narciso.11" in absolute_path:
-    DATA_ROOT = Path("C:/Users/narciso.11/OneDrive - The Ohio State University/Whitehead, Samuel's files - mosquito_ephys/mosquito-data/")
-elif "whitehead.262" in absolute_path:
-    DATA_ROOT = Path(r"C:/Users/whitehead.262/OneDrive - The Ohio State University/mosquito_ephys/mosquito-data")
-else:
-    raise Exception("Not clear which root directory to search for data")
+# Load local environmental variables
+load_dotenv()
+
+# path to data
+DATA_ROOT=os.getenv("SAVE_DATA_PATH")
 DATA_FOLDER = None  # '103_20260721'  # '33_20240626'  # '32_20240625'
 AXO_NUM_LIST = None  # axo_num_list = [0, 1, 2, 14, 15, 16, 17 ]  #
 
@@ -1307,7 +1305,7 @@ def save_processed_data(filename, abf_dict, file_type='.pkl'):
 
 # ---------------------------------------------------------------------------------
 def load_processed_data(folder_id, axo_num,
-                        root_path='/media/sam/SamData/Mosquitoes',
+                        root_path=DATA_ROOT,
                         subfolder_str='*_{:04d}',
                         data_suffix='processed',
                         ext='.pkl'):

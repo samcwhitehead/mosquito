@@ -31,6 +31,7 @@ from skimage.morphology import (isotropic_erosion, isotropic_dilation, isotropic
                                 isotropic_closing, remove_small_holes, remove_small_objects)
 from skimage.segmentation import clear_border
 from skimage.util import invert, compare_images, img_as_float
+from dotenv import load_dotenv
 
 try:
     from kindafly import FlyFrame, get_angle_from_points, get_body_angle
@@ -41,11 +42,17 @@ except ModuleNotFoundError:
     from .kindafly import FlyFrame, get_angle_from_points, get_body_angle
     from .read_photron import my_read_mraw, my_read_cih
     from .util import idx_by_thresh
-    from .process_abf import load_processed_data, save_processed_data
+    from .process_abf import load_processed_data, save_processed_data, DATA_ROOT
 
 # ---------------------------------------
 # PARAMS
 # ---------------------------------------
+# Load local environmental variables
+load_dotenv()
+
+# path to data
+DATA_ROOT=os.getenv("SAVE_DATA_PATH")
+
 # the basic tracking function pulls out minima and maxima of angles in fly_frame wedges.
 # depending on which side wing we're viewing, each of these could correspond to the
 # 'amplitude'. this dict is meant to keep that correspondence stored
@@ -82,7 +89,7 @@ SMOOTH_FACTOR = 1
 # HELPER FUNCTIONS
 # ---------------------------------------
 # --------------------------------------------------------------------------------------
-def load_video_data(folder_id, axo_num, root_path='/media/sam/SamData/Mosquitoes',
+def load_video_data(folder_id, axo_num, root_path=DATA_ROOT,
                     subfolder_str='*_{:04d}', frame_range=None, exts=['.mraw', '.avi'],
                     data_suffix='', return_cap_flag=False, just_return_fps_flag=False):
     """
