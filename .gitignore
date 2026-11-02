@@ -87,4 +87,4 @@ scratch/.ipynb_checkpoints/
 src/_old/
 *.pyc
 *.egg-info
-
+*.iml
