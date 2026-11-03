@@ -99,7 +99,7 @@ if __name__ == "__main__":
         abf_files = list(Path(data_folder).glob('**/*_processed.pkl'))
 
         # loop over each file
-        for file in abf_files:
+        for file in sorted(abf_files):
             # laod data
             print(file)
             data = pickle.load(open(file, "rb"))
@@ -107,4 +107,3 @@ if __name__ == "__main__":
 
             # plot emg
             make_emg_plot(data)
-            make_waveform_plot(data)

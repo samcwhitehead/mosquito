@@ -40,10 +40,12 @@ except ModuleNotFoundError:
 # Load local environmental variables
 load_dotenv()
 
-# path to data
-DATA_ROOT=os.getenv("SAVE_DATA_PATH")
+# which data to analyze
 DATA_FOLDER = None  # '103_20260721'  # '33_20240626'  # '32_20240625'
 AXO_NUM_LIST = None  # axo_num_list = [0, 1, 2, 14, 15, 16, 17 ]  #
+
+# path to data
+DATA_ROOT=os.getenv("SAVE_DATA_PATH")
 
 # debug?
 DEBUG_FLAG = True
