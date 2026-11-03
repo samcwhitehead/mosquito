@@ -19,7 +19,7 @@ from sklearn.neighbors import KernelDensity
 
 from mosquito.process_abf import load_processed_data, detrend_emg
 from mosquito.util import set_plot_params, my_adjust_axes, my_add_scalebar
-from mosquito.analyze_bursts import run_spike_detection
+from mosquito.analyze_bursts import run_spike_detection, load_burst_data
 
 # ======================================================
 ## PLOT PARAMETERS
@@ -46,13 +46,16 @@ MARKER_SIZE = 12
 
 # SAVE INFO
 # should we save plots?
-SAVE_TRACE_FLAG = True # if True, save the example emg trace plot; if False, don't
+SAVE_TRACE_FLAG = True  # if True, save the example emg trace plot; if False, don't
+SAVE_MN_FLAG = True  # if True, save putative MN activity plot; if False, don't
 
 # how should figures be saved? (path, resolution, file format, etc)
 SAVE_PATH = '/media/sam/SamData/Dropbox/Conferences/ESA 2026/talk/figs'
 TRACE_SAVE_STR = 'trace'  # header for filenames of trace plots
+MN_SAVE_STR = 'mn'  # header for filenames of trace plots
 SAVE_DPI = 500
 SAVE_EXT_TRACE = '.png'  #  '.svg'  #
+SAVE_EXT_MN = '.png'  #  '.svg'  #
 
 if DARK_FLAG:
     TRACE_SAVE_STR += '_dark'
@@ -62,6 +65,7 @@ if DARK_FLAG:
     mosquito_female_color = '#ffbb77'
     mosquito_male_color = '#44aa99'
     drosophila_female_color = '#aaaaaa'  # '#DDAA33'
+    albo_female_color = '#AA4499'  # should probably switch this to a dark version
 else:
     plt.style.use('default')
 
@@ -69,6 +73,7 @@ else:
     mosquito_female_color = '#004488'
     mosquito_male_color = '#BB5566'
     drosophila_female_color = '#555555'  # '#DDAA33'
+    albo_female_color = '#AA4499'
 
 # trace time duration
 TIME_DURATION = 5  # sec
@@ -129,8 +134,19 @@ female_drosophila_dvm = {
     'color': drosophila_female_color,
 }
 
+female_albo_dlm = {
+    'folder': 104,
+    'axo': 7,
+    'channel': 0,
+    't_range': (1, 1 + TIME_DURATION),
+    'ylim': (-0.3, 3.5),
+    'sex': 'F',
+    'muscle': 'DLM',
+    'species': 'albopictus',
+    'color': albo_female_color,
+}
 
-examples_list = [female_aegypti_dlm, female_aegypti_dvm, female_drosophila_dlm, female_drosophila_dvm]
+examples_list = [female_aegypti_dlm, female_aegypti_dvm, female_drosophila_dlm, female_drosophila_dvm, female_albo_dlm]
 
 # ======================================================
 ## HELPER FUNCTIONS
@@ -230,24 +246,37 @@ def plot_data_trace(data,
 
 
 # -------------------------------------------------------------------------
-def make_burst_spike_figure(ax,
+def plot_putative_mn_spikes(ax,
                             data,
-                            time_range,
                             spike_idx_all,
+                            time_range,
                             line_width=1,
                             line_color='k',
                             line_height=1,
                             scalebar_size=0):
     """
-    Function to make visualizations showing EJPs + inferred MN spikes
+    Function to make a plot of inferred MN spikes corresponding to a given
+    burst
 
+    Args:
+        - data: dictionary loaded from pickled *_processed.p file
+        - spike_idx_all: numpy array giving indices of ALL spikes, i.e.
+            the ones within a burst
+        - time_range: tuple giving the range of data to plot
+        - line_width: width of line
+        - line_color: color of line
+        - line_height: height of line
+        - scalebar_size: size (duration) of scalebar, in seconds
 
+    Returns:
+        - ax: handle to axis of plot
     """
     # some params
     scalebar_linewidth = 3.5
 
     # first get indices corresponding to time ranges
     t = data['time']
+
     idx_all = np.arange(t.size)
     idx_range = idx_all[(t >= time_range[0]) & (t <= time_range[-1])]
 
@@ -296,6 +325,14 @@ def make_burst_spike_figure(ax,
     return ax
 
 
+# ----------------------------------------------------------------------------------------------------
+def plot_all_bursts():
+    """
+    Function to make a plot of all burst waveforms from a trial, all overlaid
+
+    :return:
+    """
+
 # ======================================================
 ## MAIN FUNCTIONS
 # ======================================================
@@ -306,10 +343,10 @@ def make_trace_figure(example_dict,
                       scalebar_size=SCALEBAR_SIZE,
                       scalebar_time_units=SCALEBAR_UNITS,
                       save_path=SAVE_PATH,
-                      save_ext_trace=SAVE_EXT_TRACE,
+                      save_ext=SAVE_EXT_TRACE,
                       save_dpi=SAVE_DPI,
                       save_str=TRACE_SAVE_STR,
-                      save_trace_flag=SAVE_TRACE_FLAG):
+                      save_flag=SAVE_TRACE_FLAG):
     """
     Wrapper function to make a time series trace plot 
     and save it
@@ -326,10 +363,10 @@ def make_trace_figure(example_dict,
         figsize: tuple giving size of figure in inches
         scalebar_size: size of scalebar (in time units)
         save_path: path to save figure
-        save_ext_trace: file extension to save trace plot
+        save_ext: file extension to save trace plot
         save_dpi: dpi for saving figure
         save_str: string to append to filename
-        save_trace_flag: whether to save trace plot
+        save_flag: whether to save trace plot
     Returns: 
         fig: handle to trace figure
     
@@ -354,10 +391,71 @@ def make_trace_figure(example_dict,
                          line_color=example_dict['color'],
                          fig_params=plot_params)
 
-    if save_trace_flag:
+    if save_flag:
         # make the filename of the figure reflect which data file it's from
         save_filename = (f'{example_dict['species']}_{example_dict['sex']}_{example_dict['folder']}' +
-                         f'_{example_dict['axo']:02d}_{data_key}_{save_str}{save_ext_trace}')
+                         f'_{example_dict['axo']:02d}_{data_key}_{save_str}{save_ext}')
+
+        # save
+        fig.savefig(os.path.join(save_path, save_filename), dpi=save_dpi, bbox_inches='tight')
+
+    plt.tight_layout()
+    plt.show()
+
+    return fig
+
+
+# ---------------------------------------------------------------------------------------
+def make_putative_mn_spike_figure(example_dict,
+                                  spike_idx_all,
+                                  time_range=None,
+                                  figsize=FIGSIZE_INSET_MN,
+                                  save_path=SAVE_PATH,
+                                  save_ext=SAVE_EXT_MN,
+                                  save_dpi=SAVE_DPI,
+                                  save_str=MN_SAVE_STR,
+                                  save_flag=SAVE_MN_FLAG,
+                                  **kwargs):
+    """
+
+    Args:
+        example_dict: dictionary containing example data
+        spike_idx_all: array of index of ALL spike times, i.e. within
+            burst spikes
+        time_range: tuple giving time range to plot over.
+            If None, read from example_dict
+        figsize: tuple giving size of figure in inches
+        scalebar_size: size of scalebar (in time units)
+        save_path: path to save figure
+        save_ext: file extension to save trace plot
+        save_dpi: dpi for saving figure
+        save_str: string to append to filename
+        save_flag: whether to save trace plot
+
+    Returns:
+        ax: handle to mn activity plot
+    """
+    # load data
+    data = load_processed_data(example_dict['folder'], example_dict['axo'])
+
+    # define time range
+    if time_range is None:
+        time_range = example_dict['t_range']
+
+    # make fig and axis handles
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # plot
+    ax = plot_putative_mn_spikes(ax,
+                                 data,
+                                 spike_idx_all,
+                                 time_range,
+                                 **kwargs)
+
+    if save_flag:
+        # make the filename of the figure reflect which data file it's from
+        save_filename = (f'{example_dict['species']}_{example_dict['sex']}_{example_dict['folder']}' +
+                         f'_{example_dict['axo']:02d}_{data_key}_{save_str}{save_ext}')
 
         # save
         fig.savefig(os.path.join(save_path, save_filename), dpi=save_dpi, bbox_inches='tight')
@@ -391,27 +489,51 @@ if __name__ == "__main__":
                           data_key=data_key,
                           figsize=FIGSIZE,
                           save_path=SAVE_PATH,
-                          save_trace_flag=SAVE_TRACE_FLAG)
+                          save_flag=SAVE_TRACE_FLAG)
 
         # make inset plots
-        if 'inset1_t_range' in example_dict:
-            make_trace_figure(example_dict,
-                              time_range=example_dict['inset1_t_range'],
-                              data_key=data_key,
-                              figsize=FIGSIZE_INSET,
-                              scalebar_size=0,
-                              save_path=SAVE_PATH,
-                              save_str='inset1',
-                              save_trace_flag=SAVE_TRACE_FLAG)
+        for t_range_string in ['inset1_t_range', 'inset2_t_range']:
 
-        if 'inset2_t_range' in example_dict:
-            make_trace_figure(example_dict,
-                              time_range=example_dict['inset1_t_range'],
-                              data_key=data_key,
-                              figsize=FIGSIZE_INSET,
-                              scalebar_size=0,
-                              save_path=SAVE_PATH,
-                              save_str='inset2',
-                              save_trace_flag=SAVE_TRACE_FLAG)
+            if t_range_string in example_dict:
+                # get string to save with
+                save_str_curr = t_range_string.split('_')[0]
+
+                # make plot of ephys waveform
+                make_trace_figure(example_dict,
+                                  time_range=example_dict[t_range_string],
+                                  data_key=data_key,
+                                  figsize=FIGSIZE_INSET,
+                                  scalebar_size=0,
+                                  save_path=SAVE_PATH,
+                                  save_str=save_str_curr,
+                                  save_flag=SAVE_TRACE_FLAG)
+
+                # get per-burst spike information to plot putative MN activity
+                if example_dict['species'] == 'melanogaster':
+                    data_temp = load_processed_data(example_dict['folder'], example_dict['axo'])
+                    spike_idx_all = data_temp['spike_idx']
+                else:
+                    try:
+                        spike_df = load_burst_data(example_dict['folder'], example_dict['axo'])
+                        spike_idx_all = spike_df['peak_idx_global'].values
+                    except ValueError:
+                        print(
+                            f"No intra-burst spike data for {example_dict['folder']}, axo {example_dict['axo']}."
+                             " Run run_spike_detection from analyze_bursts.py first and save results"
+                        )
+
+
+                # make plot of putative MN activity
+                make_putative_mn_spike_figure(example_dict,
+                                              spike_idx_all,
+                                              time_range=example_dict[t_range_string],
+                                              figsize=FIGSIZE_INSET_MN,
+                                              save_path=SAVE_PATH,
+                                              save_ext=SAVE_EXT_MN,
+                                              save_dpi=SAVE_DPI,
+                                              save_str=MN_SAVE_STR,
+                                              save_flag=SAVE_MN_FLAG)
+
+
 
 

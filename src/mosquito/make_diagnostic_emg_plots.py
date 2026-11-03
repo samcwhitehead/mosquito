@@ -31,13 +31,13 @@ PLOT_SAVE_PATH = Path(DATA_ROOT) / 'albo_diagnostic_plots'
 PLOT_SAVE_PATH.mkdir(parents=False, exist_ok=True)
 
 # which data folders to analyze
-EXPR_NUMBERS = [95, 97, 104, 113, 114, 115, 116, 117, 118]
-
+EXPR_NUMBERS = [74, 75, 79, 80, 81, 82]  # [95, 97, 104, 113, 114, 115, 116, 117, 118]
+FILT_FLAG = True  # plot filtered data? or raw data?
 
 # ---------------------------------
 ## HELPER FUNCTIONS
 # ---------------------------------
-def make_emg_plot(data):
+def make_emg_plot(data, filt_flag=False):
     """
     Quick helper function to make a plot of emg
     :param data: dictionary from processed pickle file
@@ -47,7 +47,10 @@ def make_emg_plot(data):
     fig, ax = plt.subplots(figsize=(11, 4))
 
     # read out variables
-    emg = data['emg'][0]
+    if filt_flag:
+        emg = data['emg_filt']
+    else:
+        emg = data['emg'][0]
     spike_idx = data['spike_idx']
     fs = data['sampling_freq']
 
@@ -106,4 +109,4 @@ if __name__ == "__main__":
             data['filepath_load'] = file  # add the full filepath that this was just loaded from
 
             # plot emg
-            make_emg_plot(data)
+            make_emg_plot(data, filt_flag=FILT_FLAG)
