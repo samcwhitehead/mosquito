@@ -90,7 +90,7 @@ def get_abf_tstamp(abf_path):
 
 
 # -------------------------------------------------------------------------
-def get_next_folder_name(folder_date, out_path=out_path):
+def get_next_folder_name(folder_date, out_path=OUT_PATH):
     """
     Quick function to get the name for the next folder we should make
     in form XX_YYYYMMDD, where XX is an index

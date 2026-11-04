@@ -7,11 +7,14 @@ Code to analyze EMG bursts (e.g. to detect the number of spikes per burst)
 # ---------------------------------------
 import os
 import glob
+from wsgiref.simple_server import server_version
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 from scipy import signal
+from pathlib import Path
 from dotenv import load_dotenv
 
 try:
@@ -28,6 +31,15 @@ except ModuleNotFoundError:
 # load local environment variables
 load_dotenv()
 DATA_ROOT = os.getenv("SAVE_DATA_PATH")
+
+# if running as a script, which data to look at
+DATA_FOLDER = 104  # '23_20240517'  #
+AXO_NUM = 7  # 8  #  6  #
+
+# Save results?
+SAVE_FLAG = True
+SAVE_STR = 'spike_df'  # string to append to filename to save burst analysis results
+SAVE_EXT = '.pkl'  # file extension for saved burst analysis results
 
 # size of window for realigned bursts
 BURST_WINDOW = 1024  # was 1028? # number of time points to get when collecting spike windows
@@ -734,12 +746,23 @@ def load_burst_data(folder_id, axo_num,
 # MAIN
 # ---------------------------------------
 if __name__ == "__main__":
-    # for now, use this as burst detection check
-    data_folder = 55  # '23_20240517'  #
-    axo_num = 0  # 8  #  6  #
 
     # load data
-    data = load_processed_data(data_folder, axo_num)
+    data = load_processed_data(DATA_FOLDER, AXO_NUM)
 
     # get spike info
     spike_df = run_spike_detection(data, viz_flag=True)
+
+    # save?
+    if SAVE_FLAG:
+        # where to save
+        file_path = Path(data['filepath'])
+        save_folder = file_path.parent
+        save_stem = '_'.join([str(file_path.stem), SAVE_STR])
+        save_path = save_folder / (save_stem + SAVE_EXT)
+        print(save_path)
+
+        # save
+        spike_df.to_pickle(save_path)
+
+

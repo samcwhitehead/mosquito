@@ -7,15 +7,9 @@ Code to make power muscle recording figures for my ESA 2026 talk
 ## IMPORTS
 # ======================================================
 import os
-import glob
-import pickle
 
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-
-from matplotlib import rcParams
-from sklearn.neighbors import KernelDensity
 
 from mosquito.process_abf import load_processed_data, detrend_emg
 from mosquito.util import set_plot_params, my_adjust_axes, my_add_scalebar
@@ -27,19 +21,18 @@ from mosquito.analyze_bursts import run_spike_detection, load_burst_data
 PLOT_TYPE = 'powerpoint'  # 'paper' or 'powerpoint' or 'poster
 DARK_FLAG = False
 
+# visualize plots as they're made?
+VIZ_FLAG = False
+
 # params for trace plots
 SCALEBAR_SIZE = 0.5  # 0.1
 SCALEBAR_UNITS = 's'
 SCALEBAR_SIZE_INSET = 0.02
 
-# # params for trace plots
-# trace_scalebar_size = 1  # 2
-# trace_figsize = (1.7, 0.4)  # (8, 2)
-
 FIGSIZE = (6, 2)# (8, 2)
 FIGSIZE_INSET = (1.75, 2)# (8, 2)
-FIGSIZE_INSET_MN = (2.25, 1)# (8, 2)
-FIGSIZE_SPIKE_NUM = (3.65, 4)
+FIGSIZE_INSET_MN = (1.75, 0.75)# (8, 2)
+# FIGSIZE_SPIKE_NUM = (3.65, 4)
 
 # marker size and line width
 MARKER_SIZE = 12
@@ -226,14 +219,19 @@ def plot_data_trace(data,
         ax.set_ylim(ylim)
 
     # add scalebar
-    ax.spines['bottom'].set_bounds([0, scalebar_size])
-    ax.spines['bottom'].set_linewidth(scalebar_linewidth)
-    ax.spines['bottom'].set_position(('outward', 3))
+    if scalebar_size <= 0:
+        ax.spines['bottom'].set_visible(False)
+        ax.set_xticks([])
 
-    # label scalebar.
-    ax.set_xticks([scalebar_size / 2])
-    ax.set_xticklabels([f'{scalebar_size} {time_units}'])
-    ax.tick_params(length=0)
+    else:
+        ax.spines['bottom'].set_bounds([0, scalebar_size])
+        ax.spines['bottom'].set_linewidth(scalebar_linewidth)
+        ax.spines['bottom'].set_position(('outward', 3))
+
+        # label scalebar.
+        ax.set_xticks([scalebar_size / 2])
+        ax.set_xticklabels([f'{scalebar_size} {time_units}'])
+        ax.tick_params(length=0)
 
     # remove other axis lines
     for spine in ['right', 'top', 'left']:
@@ -346,7 +344,8 @@ def make_trace_figure(example_dict,
                       save_ext=SAVE_EXT_TRACE,
                       save_dpi=SAVE_DPI,
                       save_str=TRACE_SAVE_STR,
-                      save_flag=SAVE_TRACE_FLAG):
+                      save_flag=SAVE_TRACE_FLAG,
+                      viz_flag=True):
     """
     Wrapper function to make a time series trace plot 
     and save it
@@ -367,6 +366,7 @@ def make_trace_figure(example_dict,
         save_dpi: dpi for saving figure
         save_str: string to append to filename
         save_flag: whether to save trace plot
+        viz_flag: bool. show plots as they're made?
     Returns: 
         fig: handle to trace figure
     
@@ -400,7 +400,8 @@ def make_trace_figure(example_dict,
         fig.savefig(os.path.join(save_path, save_filename), dpi=save_dpi, bbox_inches='tight')
 
     plt.tight_layout()
-    plt.show()
+    if viz_flag:
+        plt.show()
 
     return fig
 
@@ -415,6 +416,7 @@ def make_putative_mn_spike_figure(example_dict,
                                   save_dpi=SAVE_DPI,
                                   save_str=MN_SAVE_STR,
                                   save_flag=SAVE_MN_FLAG,
+                                  viz_flag=True,
                                   **kwargs):
     """
 
@@ -431,6 +433,8 @@ def make_putative_mn_spike_figure(example_dict,
         save_dpi: dpi for saving figure
         save_str: string to append to filename
         save_flag: whether to save trace plot
+        viz_flag: bool. show plots as they're made?
+        kwargs: arguments to pass to plot_putative_mn_spikes
 
     Returns:
         ax: handle to mn activity plot
@@ -461,7 +465,8 @@ def make_putative_mn_spike_figure(example_dict,
         fig.savefig(os.path.join(save_path, save_filename), dpi=save_dpi, bbox_inches='tight')
 
     plt.tight_layout()
-    plt.show()
+    if viz_flag:
+        plt.show()
 
     return fig
 
@@ -489,7 +494,8 @@ if __name__ == "__main__":
                           data_key=data_key,
                           figsize=FIGSIZE,
                           save_path=SAVE_PATH,
-                          save_flag=SAVE_TRACE_FLAG)
+                          save_flag=SAVE_TRACE_FLAG,
+                          viz_flag=VIZ_FLAG)
 
         # make inset plots
         for t_range_string in ['inset1_t_range', 'inset2_t_range']:
@@ -506,7 +512,8 @@ if __name__ == "__main__":
                                   scalebar_size=0,
                                   save_path=SAVE_PATH,
                                   save_str=save_str_curr,
-                                  save_flag=SAVE_TRACE_FLAG)
+                                  save_flag=SAVE_TRACE_FLAG,
+                                  viz_flag=VIZ_FLAG)
 
                 # get per-burst spike information to plot putative MN activity
                 if example_dict['species'] == 'melanogaster':
@@ -531,8 +538,9 @@ if __name__ == "__main__":
                                               save_path=SAVE_PATH,
                                               save_ext=SAVE_EXT_MN,
                                               save_dpi=SAVE_DPI,
-                                              save_str=MN_SAVE_STR,
-                                              save_flag=SAVE_MN_FLAG)
+                                              save_str='_'.join([save_str_curr, MN_SAVE_STR]),
+                                              save_flag=SAVE_MN_FLAG,
+                                              viz_flag=VIZ_FLAG)
 
 
 
