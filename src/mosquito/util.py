@@ -504,3 +504,81 @@ def my_add_scalebar(ax, scalebar_bounds, linewidth=1.5, spine='bottom', units=''
     # return
     return ax
 
+
+# -----------------------------------------------------------------------
+def add_radial_scalebar(
+    ax,
+    length=None,
+    angle_deg=0,
+    r_start=0,
+    label=None,
+    unit="",
+    color="k",
+    lw=1.5,
+    cap_size=3,
+    label_offset=(6, 0),
+    fontsize=9,
+):
+    """Add a radial scalebar to a polar Axes.
+
+    Parameters
+    ----------
+    ax : matplotlib polar Axes
+    length : float, optional
+        Bar length in data (r) units. If None, a "nice" value (1/2/5 x 10^n)
+        close to a quarter of the current r-limit is chosen.
+    angle_deg : float
+        Angular position of the bar, in degrees (respects ax's theta zero/direction).
+    r_start : float
+        Radius at which the bar starts.
+    label : str, optional
+        Text for the label. Defaults to f"{length:g}{unit}".
+    unit : str
+        Appended to the auto-generated label (e.g. " counts").
+    cap_size : float
+        Size of the end caps (passed as mutation_scale).
+    label_offset : (float, float)
+        Label offset from the bar midpoint, in points (x right, y up).
+    """
+    if length is None:
+        target = ax.get_rmax() / 4
+        mag = 10 ** np.floor(np.log10(target))
+        candidates = np.array([1, 2, 5, 10]) * mag
+        length = candidates[candidates <= target].max()
+
+    if label is None:
+        label = f"{length:g}{unit}"
+
+    theta = np.deg2rad(angle_deg)
+    r_end = r_start + length
+
+    # '|-|' draws a line with perpendicular caps at both ends
+    ax.annotate(
+        "",
+        xy=(theta, r_end),
+        xytext=(theta, r_start),
+        xycoords="data",
+        arrowprops=dict(
+            arrowstyle="|-|",
+            color=color,
+            lw=lw,
+            shrinkA=0,
+            shrinkB=0,
+            mutation_scale=cap_size,
+        ),
+        annotation_clip=False,
+    )
+
+    # Label at the bar's midpoint, nudged by a fixed offset in screen points
+    ax.annotate(
+        label,
+        xy=(theta, r_start + length / 2),
+        xycoords="data",
+        xytext=label_offset,
+        textcoords="offset points",
+        ha="left" if label_offset[0] >= 0 else "right",
+        va="center",
+        fontsize=fontsize,
+        color=color,
+        annotation_clip=False,
+    )

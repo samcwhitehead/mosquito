@@ -205,7 +205,7 @@ if __name__ == "__main__":
 
     # ----------------------------------------------
     # get next folder name
-    next_folder = get_next_folder_name(folder_date, out_path=out_path)
+    next_folder = get_next_folder_name(folder_date, out_path=OUT_PATH)
 
     # ----------------------------------------------
     # get axo files that match folder_date
@@ -254,7 +254,7 @@ if __name__ == "__main__":
     # ----------------------------------------------
     # copy things over
     # make directory for current experiment
-    expr_folder = os.path.join(out_path, next_folder)
+    expr_folder = os.path.join(OUT_PATH, next_folder)
     if not os.path.exists(expr_folder):
         os.mkdir(expr_folder)
 

@@ -31,7 +31,7 @@ PLOT_SAVE_PATH = Path(DATA_ROOT) / 'albo_diagnostic_plots'
 PLOT_SAVE_PATH.mkdir(parents=False, exist_ok=True)
 
 # which data folders to analyze
-EXPR_NUMBERS = [74, 75, 79, 80, 81, 82]  # [95, 97, 104, 113, 114, 115, 116, 117, 118]
+EXPR_NUMBERS = [81]  # [74, 75, 79, 80, 81, 82]  # [95, 97, 104, 113, 114, 115, 116, 117, 118]
 FILT_FLAG = True  # plot filtered data? or raw data?
 
 # ---------------------------------

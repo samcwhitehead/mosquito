@@ -22,20 +22,24 @@ PLOT_TYPE = 'powerpoint'  # 'paper' or 'powerpoint' or 'poster
 DARK_FLAG = False
 
 # visualize plots as they're made?
-VIZ_FLAG = False
+VIZ_FLAG = True
 
 # params for trace plots
 SCALEBAR_SIZE = 0.5  # 0.1
 SCALEBAR_UNITS = 's'
 SCALEBAR_SIZE_INSET = 0.02
+SCALEBAR_LINEWIDTH = 2.0
 
 FIGSIZE = (6, 2)# (8, 2)
 FIGSIZE_INSET = (1.75, 2)# (8, 2)
 FIGSIZE_INSET_MN = (1.75, 0.75)# (8, 2)
 # FIGSIZE_SPIKE_NUM = (3.65, 4)
 
-# marker size and line width
-MARKER_SIZE = 12
+LINEWIDTH = 0.75
+
+MARKERSIZE=5
+MARKERTYPE='o'
+MARKERCOLOR='black'
 
 # SAVE INFO
 # should we save plots?
@@ -136,6 +140,7 @@ female_albo_dlm = {
     'sex': 'F',
     'muscle': 'DLM',
     'species': 'albopictus',
+    'inset1_t_range': (0.78, 0.78+0.08),
     'color': albo_female_color,
 }
 
@@ -152,29 +157,31 @@ def plot_data_trace(data,
                     scalebar_size=SCALEBAR_SIZE,
                     ylim=None,
                     time_units=SCALEBAR_UNITS,
-                    fig_params=None,
-                    line_color='k'):
+                    line_color='k',
+                    linewidth=LINEWIDTH,
+                    scalebar_linewidth=SCALEBAR_LINEWIDTH,
+                    norm_flag=False):
     """
     Function to take in a data dictionary for a single fly and make
     a zoomed-out plot of the time series data trace in 'key'
 
     Args:
-        - data: dictionary loaded from pickled *_processed.p file
-        - key: string, giving data dict key for variable to plot
-        - channel: if plotting multichannel data, give channel number
-        - time_range: tuple giving the range of data to plot
+        data: dictionary loaded from pickled *_processed.p file
+        key: string, giving data dict key for variable to plot
+        channel: if plotting multichannel data, give channel number
+        time_range: tuple giving the range of data to plot
             (e.g. (4, 8) will plot between t=4 and t=8 seconds)
-        - ax: axis object to plot to
-        - scalebar_size: size (duration) of scalebar, in seconds
-        - figsize: tuple giving (width, height) of figure in inches
+        ax: axis object to plot to
+        scalebar_size: size (duration) of scalebar, in seconds
+        figsize: tuple giving (width, height) of figure in inches
             (passed to pyplot.subplots)
-        - ylim: tuple giving y axis limits. If None, use auto scale
-        - time_units: units of time values in data. should be 's'
-        - fig_params: dictionary containing plot params; under
+        ylim: tuple giving y axis limits. If None, use auto scale
+        time_units: units of time values in data. should be 's'
+        fig_params: dictionary containing plot params; under
             construction
 
     Returns:
-        - fig, ax
+        fig, ax
     """
     # read out data from dict
     t = data['time']
@@ -187,9 +194,6 @@ def plot_data_trace(data,
         dat = detrend_emg(dat)
 
     # plot params
-    # TODO: move this to params dictionary
-    linewidth = 0.5
-    scalebar_linewidth = 1.0  # 1.5
     color = line_color
 
     # initialize figure (if needed)
@@ -201,6 +205,9 @@ def plot_data_trace(data,
 
     dat_curr = dat[mask]
     t_curr = t[mask]
+
+    if norm_flag:
+        dat_curr = (dat_curr - dat_curr.min()) / (dat_curr.max() - dat_curr.min())
 
     # plot. Note that we're subtracting off the initial time so it always
     # starts at t=0
@@ -229,8 +236,15 @@ def plot_data_trace(data,
         ax.spines['bottom'].set_position(('outward', 3))
 
         # label scalebar.
+        if time_units == 's':
+            label_val = scalebar_size
+        elif time_units == 'ms':
+            label_val = int(1000*scalebar_size)
+        else:
+            print('Unrecognized time units')
+
         ax.set_xticks([scalebar_size / 2])
-        ax.set_xticklabels([f'{scalebar_size} {time_units}'])
+        ax.set_xticklabels([f'{label_val} {time_units}'])
         ax.tick_params(length=0)
 
     # remove other axis lines
@@ -324,12 +338,53 @@ def plot_putative_mn_spikes(ax,
 
 
 # ----------------------------------------------------------------------------------------------------
-def plot_all_bursts():
+def plot_spike_times_on_trace(data,
+                              time_range,
+                              ydata_key='mic',
+                              channel=0,
+                              ax=None,
+                              marker_size=MARKERSIZE,
+                              marker_color=MARKERCOLOR,
+                              marker_type=MARKERTYPE,
+                              norm_flag=False):
     """
-    Function to make a plot of all burst waveforms from a trial, all overlaid
+    Function to add to an existing plot by plotting spike times atop data trace
 
     :return:
     """
+    # get axis object if we don't have it
+    if ax is None:
+        ax = plt.gca()
+
+    # turn off axis autoscale
+    ax.set_autoscale_on(False)
+
+    # read out data
+    t = data['time']
+
+    ydata = data[ydata_key]
+    if isinstance(ydata, list):
+        ydata = ydata[channel]
+
+    # normalize signal to plot on top of
+    if norm_flag:
+        mask = (t >= time_range[0]) & (t <= time_range[-1])
+        ydata = (ydata - ydata[mask].min()) / (ydata[mask].max() - ydata[mask].min())
+
+    spike_idx = data['spike_idx']
+    if isinstance(spike_idx, list):
+        spike_idx = spike_idx[channel]
+
+    # plot
+    ax.plot(t[spike_idx] - time_range[0],
+            ydata[spike_idx],
+            color=marker_color,
+            markersize=marker_size,
+            marker=marker_type,
+            linestyle='None')
+
+    return ax
+
 
 # ======================================================
 ## MAIN FUNCTIONS
@@ -337,15 +392,20 @@ def plot_all_bursts():
 def make_trace_figure(example_dict,
                       time_range=None,
                       data_key='emg',
+                      channel=None,
+                      ylim=None,
+                      line_color=None,
                       figsize=FIGSIZE,
                       scalebar_size=SCALEBAR_SIZE,
                       scalebar_time_units=SCALEBAR_UNITS,
+                      norm_flag=False,
                       save_path=SAVE_PATH,
                       save_ext=SAVE_EXT_TRACE,
                       save_dpi=SAVE_DPI,
                       save_str=TRACE_SAVE_STR,
                       save_flag=SAVE_TRACE_FLAG,
-                      viz_flag=True):
+                      viz_flag=True,
+                      **kwargs):
     """
     Wrapper function to make a time series trace plot 
     and save it
@@ -378,18 +438,132 @@ def make_trace_figure(example_dict,
     if time_range is None:
         time_range = example_dict['t_range']
 
+    if ylim is None:
+        ylim = example_dict['ylim']
+
+    if channel is None:
+        channel = example_dict['channel']
+
+    if line_color is None:
+        line_color = example_dict['color']
+
+
     # make figure
     fig, ax = plt.subplots(figsize=figsize)
     ax = plot_data_trace(data,
                          data_key,
                          time_range,
-                         channel=example_dict['channel'],
+                         channel=channel,
                          ax=ax,
                          scalebar_size=scalebar_size,
                          time_units=scalebar_time_units,
-                         ylim=example_dict['ylim'],
-                         line_color=example_dict['color'],
-                         fig_params=plot_params)
+                         ylim=ylim,
+                         line_color=line_color,
+                         norm_flag=norm_flag,
+                         **kwargs)
+
+    # # kludgy but whatever
+    # if plot_spike_times_flag:
+    #     ax = plot_spike_times_on_trace(data, time_range, data_key, ax=ax,
+    #                                    channel=example_dict['channel'],
+    #                                    marker_color=line_color)
+
+    if save_flag:
+        # make the filename of the figure reflect which data file it's from
+        save_filename = (f'{example_dict['species']}_{example_dict['sex']}_{example_dict['folder']}' +
+                         f'_{example_dict['axo']:02d}_{data_key}_{save_str}{save_ext}')
+
+        # save
+        fig.savefig(os.path.join(save_path, save_filename), dpi=save_dpi, bbox_inches='tight')
+
+    plt.tight_layout()
+    if viz_flag:
+        plt.show()
+
+    return fig
+
+
+# ---------------------------------------------------------------------------------------
+def make_trace_figure_with_spike_times(example_dict,
+                                       time_range=None,
+                                       data_key='emg',
+                                       channel=None,
+                                       ylim=None,
+                                       line_color=None,
+                                       marker_color=None,
+                                       marker_size=MARKERSIZE,
+                                       figsize=FIGSIZE,
+                                       scalebar_size=SCALEBAR_SIZE,
+                                       scalebar_time_units=SCALEBAR_UNITS,
+                                       norm_flag=False,
+                                       save_path=SAVE_PATH,
+                                       save_ext=SAVE_EXT_TRACE,
+                                       save_dpi=SAVE_DPI,
+                                       save_str=TRACE_SAVE_STR,
+                                       save_flag=SAVE_TRACE_FLAG,
+                                       viz_flag=True,
+                                       **kwargs):
+    """
+    Wrapper function to make a time series trace plot
+    and save it
+
+    Args:
+        example_dict: dictionary containing example data
+            identifiers, including data folder, axo,
+            channel, t_range, ylim, sex, muscle, species,
+            and color for the plot
+        data_key: which type of data to plot ('emg',
+            'wbf', etc.)
+        time_range: tuple giving time range to plot over.
+            If None, read from example_dict
+        figsize: tuple giving size of figure in inches
+        scalebar_size: size of scalebar (in time units)
+        save_path: path to save figure
+        save_ext: file extension to save trace plot
+        save_dpi: dpi for saving figure
+        save_str: string to append to filename
+        save_flag: whether to save trace plot
+        viz_flag: bool. show plots as they're made?
+    Returns:
+        fig: handle to trace figure
+
+    """
+    # load data
+    data = load_processed_data(example_dict['folder'], example_dict['axo'])
+
+    # define time range
+    if time_range is None:
+        time_range = example_dict['t_range']
+
+    if ylim is None:
+        ylim = example_dict['ylim']
+
+    if channel is None:
+        channel = example_dict['channel']
+
+    if line_color is None:
+        line_color = example_dict['color']
+
+    # make figure
+    fig, ax = plt.subplots(figsize=figsize)
+    ax = plot_data_trace(data,
+                         data_key,
+                         time_range,
+                         channel=channel,
+                         ax=ax,
+                         scalebar_size=scalebar_size,
+                         time_units=scalebar_time_units,
+                         ylim=ylim,
+                         line_color=line_color,
+                         norm_flag=norm_flag,
+                         **kwargs)
+
+
+    ax = plot_spike_times_on_trace(data, time_range, data_key, ax=ax,
+                                   channel=example_dict['channel'],
+                                   marker_color=marker_color,
+                                   norm_flag=norm_flag,
+                                   marker_size=marker_size)
 
     if save_flag:
         # make the filename of the figure reflect which data file it's from
@@ -479,10 +653,7 @@ if __name__ == "__main__":
     plot_params = set_plot_params(plot_type=PLOT_TYPE)
 
     # which flies to plot for
-    example_dict_list = [female_aegypti_dvm,
-                         female_aegypti_dlm,
-                         female_drosophila_dvm,
-                         female_drosophila_dlm]
+    example_dict_list = [female_albo_dlm]
 
     # which type of plot to make
     data_key = 'emg'
